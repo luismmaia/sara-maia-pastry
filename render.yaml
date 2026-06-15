@@ -1,17 +1,23 @@
 # Blueprint do Render. Liga o teu repositório GitHub e o Render lê este ficheiro.
+#
+# NOTA SOBRE A BASE DE DADOS:
+# Este blueprint NÃO cria uma base de dados (para nunca criar uma paga sem querer).
+# Cria só a app web no plano FREE. A ligação à base de dados é feita pela variável
+# DATABASE_URL, que preenches tu com:
+#   - uma base de dados grátis e permanente do Neon (neon.com), recomendado; ou
+#   - um Postgres "Free" criado à mão no Render (apaga ao fim de 30 dias).
+
 services:
   - type: web
     name: sara-maia-pastry
     runtime: node
-    plan: starter            # ~7 USD/mês. Podes começar em "free" para testar.
+    plan: free                 # plano gratuito (adormece após 15 min de inatividade)
     buildCommand: npm install && npm run build
     startCommand: npm run start
     healthCheckPath: /
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: sara-maia-db
-          property: connectionString
+        sync: false            # cola aqui a connection string da tua base de dados grátis
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -31,11 +37,6 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
       - key: AUTH_SECRET
-        generateValue: true
+        generateValue: true    # o Render gera uma chave segura sozinho
       - key: NEXT_PUBLIC_SITE_URL
         sync: false
-
-databases:
-  - name: sara-maia-db
-    plan: basic-256mb        # ~7 USD/mês. Há também "free" para testar.
-    databaseName: saramaia
