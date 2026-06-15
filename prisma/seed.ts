@@ -4,11 +4,23 @@ const db = new PrismaClient();
 const U = (id: string) => `https://images.unsplash.com/${id}?w=900&q=80&auto=format&fit=crop`;
 
 async function main() {
-  // Locais
-  const maia = await db.location.create({ data: { name: "Atelier · Maia", slug: "maia", sortOrder: 0 } });
-  await db.location.create({ data: { name: "Ponto · Porto", slug: "porto", sortOrder: 1, active: true } });
+  // Idempotente: se já houver produtos, não volta a semear (evita duplicados a cada deploy).
+  const existing = await db.product.count();
+  if (existing > 0) {
+    console.log(`Seed ignorado: já existem ${existing} produtos.`);
+    return;
+  }
 
-  // Produtos de exemplo (substitui depois pelos reais no Backoffice)
+  // Locais (upsert por slug, para não duplicar)
+  const maia = await db.location.upsert({
+    where: { slug: "maia" }, update: {},
+    create: { name: "Atelier · Maia", slug: "maia", sortOrder: 0 },
+  });
+  await db.location.upsert({
+    where: { slug: "porto" }, update: {},
+    create: { name: "Ponto · Porto", slug: "porto", sortOrder: 1, active: true },
+  });
+
   const items = [
     { namePt: "Tarte de Frutos Vermelhos", nameEn: "Red Berry Tart", catPt: "frutos vermelhos", catEn: "red berries",
       descPt: "Massa areada, creme de baunilha e frutos vermelhos frescos.", descEn: "Shortcrust, vanilla cream and fresh red berries.",
@@ -50,7 +62,7 @@ async function main() {
     });
   }
 
-  // Alguns horários abertos na Maia (próximos dias)
+  // Horários de levantamento na Maia (próximos dias)
   const now = new Date();
   for (const off of [2, 3, 5, 6, 9, 10]) {
     for (const [h, m] of [[10, 30], [16, 30], [18, 0]] as const) {
@@ -60,4 +72,8 @@ async function main() {
   }
   console.log("Seed concluído.");
 }
-main().finally(() => db.$disconnect());
+
+// Nunca falhar o deploy por causa do seed: regista o erro mas sai com sucesso.
+main()
+  .catch((e) => { console.error("Seed: aviso —", e?.message || e); })
+  .finally(() => db.$disconnect());

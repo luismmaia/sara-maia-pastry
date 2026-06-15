@@ -41,7 +41,7 @@ Para **só testar o design**, basta `ADMIN_PASSWORD`; o resto pode ficar vazio.
 
 ## 5. Primeiro arranque
 - O `build` sincroniza a base de dados com o modelo sozinho (`prisma db push`).
-- Para meter os dados de exemplo uma vez: no Render abre a **Shell** do serviço e corre `npm run seed`.
+- Os dados de exemplo (bolos + horários) são criados **automaticamente** no primeiro arranque, se a base de dados estiver vazia. Não precisas de Shell.
 - Abre o site no URL `.onrender.com`. O backoffice está em `/admin`.
 
 ## 6. Ligar o webhook do Stripe (importante!)
