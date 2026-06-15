@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { T, MONTHS, DOWS, Lang } from "./dict";
@@ -44,6 +44,20 @@ export default function Storefront() {
 
   const sizeOpts = useMemo(() => cur?.options.filter((o) => o.kind === "size") ?? [], [cur]);
   const decoOpts = useMemo(() => cur?.options.filter((o) => o.kind === "deco") ?? [], [cur]);
+
+  // navegação entre fotos (swipe no telemóvel / arrastar com o rato)
+  const dragX = useRef<number | null>(null);
+  function nextPhoto(dir: number) {
+    if (!cur || cur.photos.length < 2) return;
+    const n = cur.photos.length;
+    setPhotoIdx((i) => (dir > 0 ? (i + 1) % n : (i - 1 + n) % n));
+  }
+  function onSwipeStart(x: number) { dragX.current = x; }
+  function onSwipeEnd(x: number) {
+    if (dragX.current == null) return;
+    const dx = x - dragX.current; dragX.current = null;
+    if (Math.abs(dx) > 40) nextPhoto(dx < 0 ? 1 : -1);
+  }
 
   function openProduct(p: Product) {
     setCur(p); setPhotoIdx(0); setSizeOpt(null); setDecoOpt(null);
@@ -100,7 +114,7 @@ export default function Storefront() {
               <text x="71" y="60" fontFamily="Jost" fontSize="30" fill="#3A3A38" stroke="none" textAnchor="middle">M</text>
             </svg>
           </div>
-          <span className="brandword">Sara Maia</span>
+          <span className="brandword">Sara Maia Pastry</span>
           <nav className="nav-links">
             <a href="#collection">{t("nav_cakes")}</a>
             <a href="#about">{t("nav_about")}</a>
@@ -125,8 +139,9 @@ export default function Storefront() {
           {products.map((p) => (
             <div className="card" key={p.id} onClick={() => openProduct(p)} style={soldOut(p) ? { opacity: .6 } : undefined}>
               <div className="ph">
-                <div className="fallback"><span>{lang === "pt" ? p.namePt : p.nameEn}</span></div>
-                {p.photos[0] && <img src={p.photos[0].url} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />}
+                {p.photos[0]
+                  ? <img src={p.photos[0].url} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+                  : <div className="fallback"><span>{lang === "pt" ? p.namePt : p.nameEn}</span></div>}
                 <div className="tag" style={soldOut(p) ? { color: "var(--ink-soft)" } : undefined}>
                   {soldOut(p) ? t("sold_out") : (lowStock(p) ? t("left").replace("{n}", String(p.stock)) : (lang === "pt" ? p.catPt : p.catEn))}
                 </div>
@@ -148,7 +163,7 @@ export default function Storefront() {
 
       <footer>
         <div className="fnote">
-          <div>Sara Maia · Pastry</div>
+          <div>Sara Maia Pastry</div>
           <div>Maia · Porto · Portugal</div>
           <div><a href="https://instagram.com/saramaiapastry" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>@saramaiapastry</a></div>
         </div>
@@ -164,7 +179,21 @@ export default function Storefront() {
             <div className="panel-head"><span className="eyebrow">{t("p_head")}</span><button className="x" onClick={closeAll}>✕</button></div>
             <div className="p-body">
               <div className="p-gallery">
-                <div className="p-main-img">{cur.photos[photoIdx] && <img src={cur.photos[photoIdx].url} alt="" />}</div>
+                <div className="p-main-img"
+                  onTouchStart={(e) => onSwipeStart(e.touches[0].clientX)}
+                  onTouchEnd={(e) => onSwipeEnd(e.changedTouches[0].clientX)}
+                  onMouseDown={(e) => onSwipeStart(e.clientX)}
+                  onMouseUp={(e) => onSwipeEnd(e.clientX)}
+                  style={{ touchAction: "pan-y", cursor: cur.photos.length > 1 ? "grab" : "default", userSelect: "none" }}>
+                  {cur.photos[photoIdx] && <img src={cur.photos[photoIdx].url} alt="" draggable={false} />}
+                  {cur.photos.length > 1 && (
+                    <div className="p-dots">
+                      {cur.photos.map((_, i) => (
+                        <span key={i} className={i === photoIdx ? "on" : ""} onClick={() => setPhotoIdx(i)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div className="p-thumbs">
                   {cur.photos.map((ph, i) => (
                     <button key={ph.id} className={i === photoIdx ? "on" : ""} onClick={() => setPhotoIdx(i)}><img src={ph.url} alt="" /></button>
