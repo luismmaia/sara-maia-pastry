@@ -1,0 +1,41 @@
+# Blueprint do Render. Liga o teu repositório GitHub e o Render lê este ficheiro.
+services:
+  - type: web
+    name: sara-maia-pastry
+    runtime: node
+    plan: starter            # ~7 USD/mês. Podes começar em "free" para testar.
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sara-maia-db
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: VENDUS_API_KEY
+        sync: false
+      - key: VENDUS_REGISTER_ID
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_OWNER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+
+databases:
+  - name: sara-maia-db
+    plan: basic-256mb        # ~7 USD/mês. Há também "free" para testar.
+    databaseName: saramaia

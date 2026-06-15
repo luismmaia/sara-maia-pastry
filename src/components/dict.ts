@@ -1,0 +1,44 @@
+export type Lang = "pt" | "en";
+export const MONTHS: Record<Lang, string[]> = {
+  pt: ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"],
+  en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
+};
+export const DOWS: Record<Lang, string[]> = { pt: ["S","T","Q","Q","S","S","D"], en: ["M","T","W","T","F","S","S"] };
+export const T: Record<Lang, Record<string, string>> = {
+  pt: {
+    nav_cakes:"Bolos", nav_about:"Atelier", nav_pickup:"Levantamento", nav_order:"Encomenda",
+    hero_eyebrow:"pâtisserie · feita à mão", hero_l1:"Bolos que se", hero_l2:"encomendam", hero_l3:"e se levantam.",
+    hero_p:"Pequenas produções, ingredientes de época e levantamento em horário marcado. Cada bolo é feito por encomenda — escolhe o tamanho, a decoração e o teu horário.",
+    hero_cta:"Ver a coleção", hero_meta2:"Levantamento ao balcão", hero_meta3:"Por encomenda",
+    col_eyebrow:"a coleção", col_title:"Disponível esta semana",
+    ab_eyebrow:"o atelier", ab_title:"Feito em pequenas quantidades, todos os dias.",
+    ab_p:"Trabalho por encomenda para garantir frescura e cuidado em cada peça. O número de bolos disponíveis é definido pelos horários de levantamento.",
+    footer_admin:"Backoffice", p_head:"o teu bolo", pk_loc:"Local de levantamento",
+    lg_avail:"com horários", lg_none:"sem horários", p_total:"total", p_add:"Adicionar à encomenda",
+    co_head:"finalizar encomenda", co_empty:"Ainda não escolheste nenhum bolo.", co_browse:"Ver a coleção",
+    co_guest:"Convidado", co_account:"Criar conta", f_name:"Nome", f_phone:"Telemóvel", f_email:"E-mail", f_pass:"Palavra-passe",
+    f_inv:"Quero fatura com contribuinte", f_nif:"NIF (contribuinte)", co_pay:"Pagamento",
+    co_paybtn:"Pagar e reservar horário", lead_one:"requer 1 dia de antecedência", lead_more:"requer {n} dias de antecedência",
+    t_need:"Escolhe tamanho, decoração, dia e horário", t_fill:"Preenche nome, telemóvel e e-mail",
+    from:"desde", loading:"a carregar…", paying:"a processar…", paid:"Encomenda confirmada!",
+    sold_out:"Esgotado", made_to_order:"Por encomenda", left:"últimas {n} unidades", lead_block:"Dias a cinzento precisam de mais tempo de produção",
+  },
+  en: {
+    nav_cakes:"Cakes", nav_about:"Atelier", nav_pickup:"Pickup", nav_order:"Order",
+    hero_eyebrow:"pâtisserie · handmade", hero_l1:"Cakes you", hero_l2:"order", hero_l3:"and collect.",
+    hero_p:"Small batches, seasonal ingredients and pickup by appointment. Every cake is made to order — choose the size, the decoration and your time slot.",
+    hero_cta:"View the collection", hero_meta2:"Counter pickup", hero_meta3:"Made to order",
+    col_eyebrow:"the collection", col_title:"Available this week",
+    ab_eyebrow:"the atelier", ab_title:"Made in small batches, every day.",
+    ab_p:"Everything is made to order for freshness and care. The number of cakes available is set by the pickup slots.",
+    footer_admin:"Backoffice", p_head:"your cake", pk_loc:"Pickup location",
+    lg_avail:"slots open", lg_none:"no slots", p_total:"total", p_add:"Add to order",
+    co_head:"checkout", co_empty:"You haven't chosen a cake yet.", co_browse:"View the collection",
+    co_guest:"Guest", co_account:"Create account", f_name:"Name", f_phone:"Phone", f_email:"Email", f_pass:"Password",
+    f_inv:"I'd like an invoice with tax ID", f_nif:"Tax ID (NIF)", co_pay:"Payment",
+    co_paybtn:"Pay and reserve slot", lead_one:"needs 1 day's notice", lead_more:"needs {n} days' notice",
+    t_need:"Pick size, decoration, day and time", t_fill:"Fill in name, phone and email",
+    from:"from", loading:"loading…", paying:"processing…", paid:"Order confirmed!",
+    sold_out:"Sold out", made_to_order:"Made to order", left:"last {n} left", lead_block:"Greyed days need more production time",
+  },
+};

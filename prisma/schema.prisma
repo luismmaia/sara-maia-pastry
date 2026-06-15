@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  slots     Slot[]
+  orders    Order[]
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id         String          @id @default(cuid())
+  namePt     String
+  nameEn     String
+  descPt     String          @default("")
+  descEn     String          @default("")
+  catPt      String          @default("")
+  catEn      String          @default("")
+  basePrice  Int             // em cêntimos
+  leadDays   Int             @default(2)  // antecedência mínima de produção (dias)
+  trackStock Boolean         @default(false) // false = por encomenda (ilimitado); true = stock limitado
+  stock      Int?            // unidades restantes quando trackStock = true
+  active     Boolean         @default(true)
+  sortOrder  Int             @default(0)
+  photos     ProductPhoto[]
+  options    ProductOption[]
+  orders     Order[]
+  createdAt  DateTime        @default(now())
+}
+
+// "1 ou 2 personalizações": cada uma é um 'kind' (ex.: "Tamanho", "Decoração");
+// cada kind tem vários valores (choices), e cada choice pode somar ao preço.
+model ProductOption {
+  id         String  @id @default(cuid())
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String
+  kind       String  // identificador do grupo, ex.: "size" | "deco"
+  labelPt    String  // nome do grupo em PT, ex.: "Tamanho"
+  labelEn    String
+  choicePt   String  // valor em PT, ex.: "20 cm"
+  choiceEn   String
+  priceDelta Int     @default(0) // cêntimos a somar
+  sortOrder  Int     @default(0)
+}
+
+model ProductPhoto {
+  id        String  @id @default(cuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  url       String
+  sortOrder Int     @default(0)
+}
+
+model Slot {
+  id         String   @id @default(cuid())
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  locationId String
+  startsAt   DateTime
+  capacity   Int      @default(1)
+  booked     Int      @default(0)
+  active     Boolean  @default(true)
+  orders     Order[]
+  createdAt  DateTime @default(now())
+
+  @@index([locationId, startsAt])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  phone        String?
+  orders       Order[]
+  createdAt    DateTime @default(now())
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  product       Product  @relation(fields: [productId], references: [id])
+  productId     String
+  productName   String   // snapshot
+  sizeLabel     String?  // snapshot da escolha
+  decoLabel     String?
+  unitPrice     Int
+  total         Int
+  location      Location @relation(fields: [locationId], references: [id])
+  locationId    String
+  slot          Slot     @relation(fields: [slotId], references: [id])
+  slotId        String
+  pickupAt      DateTime // snapshot
+  customerName  String
+  customerPhone String
+  customerEmail String
+  nif           String?
+  wantInvoice   Boolean  @default(false)
+  status        String   @default("pending") // pending | paid | cancelled
+  stripePaymentIntentId String?  @unique
+  vendusInvoiceId       String?
+  user          User?    @relation(fields: [userId], references: [id])
+  userId        String?
+  createdAt     DateTime @default(now())
+}
