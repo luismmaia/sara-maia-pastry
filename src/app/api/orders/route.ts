@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
+import { stripe, stripeConfigured } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  if (!stripeConfigured) {
+    return NextResponse.json({ error: "Pagamentos ainda não configurados (modo de testes de design)." }, { status: 503 });
+  }
   const b = await req.json();
   const { productId, sizeOptionId, decoOptionId, slotId, customer } = b;
 
