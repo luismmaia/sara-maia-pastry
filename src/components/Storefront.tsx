@@ -23,8 +23,8 @@ export default function Storefront() {
   const t = (k: string) => T[lang][k] ?? k;
 
   useEffect(() => {
-    fetch("/api/products").then((r) => r.json()).then(setProducts).catch(() => {});
-    fetch("/api/availability").then((r) => r.json()).then((d) => { setLocations(d.locations || []); setSlots(d.slots || []); }).catch(() => {});
+    fetch("/api/products", { cache: "no-store" }).then((r) => r.json()).then(setProducts).catch(() => {});
+    fetch("/api/availability", { cache: "no-store" }).then((r) => r.json()).then((d) => { setLocations(d.locations || []); setSlots(d.slots || []); }).catch(() => {});
   }, []);
 
   // ----- product modal state -----
