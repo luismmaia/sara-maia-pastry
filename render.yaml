@@ -1,23 +1,25 @@
 # Blueprint do Render. Liga o teu repositório GitHub e o Render lê este ficheiro.
+# Cria a app web + a base de dados, ambas no plano FREE (gratuito).
 #
-# NOTA SOBRE A BASE DE DADOS:
-# Este blueprint NÃO cria uma base de dados (para nunca criar uma paga sem querer).
-# Cria só a app web no plano FREE. A ligação à base de dados é feita pela variável
-# DATABASE_URL, que preenches tu com:
-#   - uma base de dados grátis e permanente do Neon (neon.com), recomendado; ou
-#   - um Postgres "Free" criado à mão no Render (apaga ao fim de 30 dias).
+# IMPORTANTE sobre a base de dados Free do Render:
+#   - Cada conta só pode ter UMA base de dados Postgres Free de cada vez.
+#     Se já tens uma base de dados criada (ex.: a Basic anterior), APAGA-A primeiro,
+#     senão a sincronização do blueprint dá erro.
+#   - A base de dados Free é apagada ~30 dias após criação (recria e corre o seed de novo).
 
 services:
   - type: web
     name: sara-maia-pastry
     runtime: node
-    plan: free                 # plano gratuito (adormece após 15 min de inatividade)
+    plan: free                 # app web gratuita (adormece após 15 min de inatividade)
     buildCommand: npm install && npm run build
     startCommand: npm run start
     healthCheckPath: /
     envVars:
       - key: DATABASE_URL
-        sync: false            # cola aqui a connection string da tua base de dados grátis
+        fromDatabase:
+          name: sara-maia-db
+          property: connectionString
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -40,3 +42,8 @@ services:
         generateValue: true    # o Render gera uma chave segura sozinho
       - key: NEXT_PUBLIC_SITE_URL
         sync: false
+
+databases:
+  - name: sara-maia-db
+    plan: free                 # base de dados Postgres GRATUITA (expira aos 30 dias)
+    databaseName: saramaia
