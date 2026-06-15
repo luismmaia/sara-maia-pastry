@@ -56,6 +56,8 @@ header{position:sticky;top:0;z-index:40;background:rgba(242,241,238,.82);backdro
 .strip-pts{font-family:'Jost';font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;line-height:2.6;border-left:1px solid #555;padding-left:26px}
 footer{max-width:1240px;margin:0 auto;padding:54px 24px 70px;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:24px;border-top:1px solid var(--line)}
 footer .fnote{font-family:'Jost';font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);line-height:2.2}
+footer .fnote a{color:inherit;transition:color .2s}
+footer .fnote a:hover{color:var(--accent)}
 .admin-link{font-family:'Jost';font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;border:1px solid var(--line-strong);padding:9px 16px;text-decoration:none}
 .admin-link:hover{background:var(--ink);color:#fff}
 .scrim{position:fixed;inset:0;background:rgba(40,40,38,.42);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .3s;z-index:50}

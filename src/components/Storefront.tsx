@@ -116,19 +116,9 @@ export default function Storefront() {
         </div>
       </header>
 
-      <section className="hero">
-        <div className="hero-frame">
-          <span className="eyebrow">{t("hero_eyebrow")}</span>
-          <h1>{t("hero_l1")}<br /><em>{t("hero_l2")}</em><br />{t("hero_l3")}</h1>
-          <p>{t("hero_p")}</p>
-          <a className="hero-cta" href="#collection">{t("hero_cta")} →</a>
-        </div>
-        <div className="hero-meta"><div>Maia · Porto</div><div>{t("hero_meta2")}</div><div>{t("hero_meta3")}</div></div>
-      </section>
-
-      <section className="section" id="collection">
+      <section className="section" id="collection" style={{ paddingTop: 56 }}>
         <div className="sec-head">
-          <div><span className="eyebrow">{t("col_eyebrow")}</span><h2>{t("col_title")}</h2></div>
+          <div><span className="eyebrow">{t("col_eyebrow")}</span></div>
           <span className="count">{products.length} {lang === "pt" ? "referências" : "references"}</span>
         </div>
         <div className="grid">
@@ -157,8 +147,11 @@ export default function Storefront() {
       </section>
 
       <footer>
-        <div className="fnote"><div>Sara Maia · Pastry</div><div>Maia · Porto · Portugal</div><div>@saramaiapastry</div></div>
-        <a className="admin-link" href="/admin">{t("footer_admin")}</a>
+        <div className="fnote">
+          <div>Sara Maia · Pastry</div>
+          <div>Maia · Porto · Portugal</div>
+          <div><a href="https://instagram.com/saramaiapastry" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>@saramaiapastry</a></div>
+        </div>
       </footer>
 
       {/* SCRIM */}
