@@ -9,7 +9,7 @@ type InvoiceInput = {
   nif?: string | null;
 };
 
-export async function createVendusInvoice(input: InvoiceInput): Promise<string | null> {
+export async function createVendusInvoice(input: InvoiceInput): Promise<{ id: string; url: string | null } | null> {
   const apiKey = process.env.VENDUS_API_KEY;
   if (!apiKey) return null;
 
@@ -39,9 +39,29 @@ export async function createVendusInvoice(input: InvoiceInput): Promise<string |
     });
     if (!res.ok) { console.error("Vendus", res.status, await res.text()); return null; }
     const data = await res.json();
-    return String(data.id ?? data.number ?? "");
+    const id = String(data.id ?? data.number ?? "");
+    // O Vendus costuma devolver um link para o PDF/documento; tentamos vários campos comuns.
+    const url = data.output_url ?? data.permalink ?? data.url ?? data.output ?? data.download_url ?? null;
+    return { id, url: typeof url === "string" ? url : null };
   } catch (e) {
     console.error("Vendus error", e);
     return null;
   }
+}
+
+// Tenta obter o link da fatura a partir do id (para faturas já criadas).
+export async function getVendusInvoiceUrl(id: string): Promise<string | null> {
+  const apiKey = process.env.VENDUS_API_KEY;
+  if (!apiKey || !id) return null;
+  const auth = "Basic " + Buffer.from(apiKey + ":").toString("base64");
+  try {
+    const res = await fetch(`https://www.vendus.pt/ws/v1.1/documents/${encodeURIComponent(id)}/`, {
+      headers: { Authorization: auth },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const d = Array.isArray(data) ? data[0] : data;
+    const url = d?.output_url ?? d?.permalink ?? d?.url ?? d?.output ?? d?.download_url ?? null;
+    return typeof url === "string" ? url : null;
+  } catch { return null; }
 }

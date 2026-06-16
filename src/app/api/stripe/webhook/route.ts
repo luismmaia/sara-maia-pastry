@@ -32,11 +32,11 @@ export async function POST(req: Request) {
         }
         await prisma.$transaction(ops);
         // Fatura Vendus (se configurado)
-        const invoiceId = await createVendusInvoice({
+        const invoice = await createVendusInvoice({
           productName: order.productName, total: order.total,
           customerName: order.customerName, customerEmail: order.customerEmail, nif: order.nif,
         });
-        if (invoiceId) await prisma.order.update({ where: { id: order.id }, data: { vendusInvoiceId: invoiceId } });
+        if (invoice?.id) await prisma.order.update({ where: { id: order.id }, data: { vendusInvoiceId: invoice.id, vendusInvoiceUrl: invoice.url } });
         // Emails (se configurado)
         await sendOrderEmails({
           productName: order.productName, sizeLabel: order.sizeLabel, decoLabel: order.decoLabel,

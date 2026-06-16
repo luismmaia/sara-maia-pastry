@@ -362,21 +362,143 @@ function Slots() {
   );
 }
 
+const ORDER_ST: Record<string, { label: string; color: string }> = {
+  paid: { label: "Paga", color: "var(--accent)" },
+  picked_up: { label: "Levantada", color: "var(--ok)" },
+  cancelled: { label: "Cancelada", color: "var(--ink-soft)" },
+  pending: { label: "Por pagar", color: "var(--ink-soft)" },
+};
+const dtLabel = (d: string | Date) => new Date(d).toLocaleString("pt-PT", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
 function Orders() {
-  const [list, setList] = useState<any[]>([]);
-  useEffect(() => { fetch("/api/admin/orders").then((r) => r.json()).then(setList); }, []);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [view, setView] = useState<"agenda" | "list">("agenda");
+  const [fLoc, setFLoc] = useState(""); const [fStatus, setFStatus] = useState("");
+  const [fFrom, setFFrom] = useState(""); const [fTo, setFTo] = useState(""); const [q, setQ] = useState("");
+  const [busy, setBusy] = useState<string>("");
+  const load = () => fetch("/api/admin/orders").then((r) => r.json()).then((d) => setOrders(Array.isArray(d) ? d : []));
+  useEffect(() => { load(); }, []);
+
+  const locNames = Array.from(new Set(orders.map((o) => o.location?.name).filter(Boolean)));
+
+  const filtered = orders.filter((o) => {
+    if (fLoc && o.location?.name !== fLoc) return false;
+    if (fStatus && o.status !== fStatus) return false;
+    const day = new Date(o.pickupAt); const ymd = day.toISOString().slice(0, 10);
+    if (fFrom && ymd < fFrom) return false;
+    if (fTo && ymd > fTo) return false;
+    if (q) { const s = (o.customerName + " " + o.customerPhone + " " + o.customerEmail + " " + o.productName).toLowerCase(); if (!s.includes(q.toLowerCase())) return false; }
+    return true;
+  });
+
+  const count = filtered.length;
+  const revenue = filtered.filter((o) => o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+
+  async function act(id: string, path: string, confirmMsg?: string) {
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    setBusy(id + path);
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/${path}`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) alert(d.error || "Não foi possível concluir.");
+      else if (path === "cancel") alert(d.refunded ? "Cancelada e reembolsada." : "Cancelada (sem reembolso automático).");
+      else if (path === "resend") alert("Email reenviado (se os emails estiverem configurados).");
+      load();
+    } catch { alert("Erro de ligação."); }
+    setBusy("");
+  }
+  async function invoice(id: string) {
+    setBusy(id + "invoice");
+    try {
+      const res = await fetch(`/api/admin/orders/${id}/invoice`);
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.url) window.open(d.url, "_blank");
+      else alert(d.error || (d.id ? "Fatura " + d.id + " — sem link disponível." : "Sem fatura."));
+    } catch { alert("Erro de ligação."); }
+    setBusy("");
+  }
+
+  function exportCsv() {
+    const head = ["Levantamento", "Produto", "Opções", "Total (€)", "Estado", "Cliente", "Telemóvel", "Email", "NIF", "Local", "Fatura Vendus"];
+    const cell = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = filtered.map((o) => [
+      dtLabel(o.pickupAt), o.productName, [o.sizeLabel, o.decoLabel].filter(Boolean).join(" · "),
+      (o.total / 100).toFixed(2), ORDER_ST[o.status]?.label || o.status,
+      o.customerName, o.customerPhone, o.customerEmail, o.nif || "", o.location?.name || "", o.vendusInvoiceId || "",
+    ].map(cell).join(";"));
+    const csv = "\ufeff" + [head.map(cell).join(";"), ...rows].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a"); a.href = url; a.download = "encomendas.csv"; a.click(); URL.revokeObjectURL(url);
+  }
+
+  const orderCard = (o: any) => {
+    const st = ORDER_ST[o.status] || ORDER_ST.pending; const b = (p: string) => busy === o.id + p;
+    return (
+      <div className="a-row" key={o.id} style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <b>{o.productName} — {eur(o.total)} <span style={{ color: st.color }}>· {st.label}</span></b>
+          <span style={{ color: "var(--ink-soft)", fontSize: ".82rem" }}>{dtLabel(o.pickupAt)} · {o.location?.name}</span>
+        </div>
+        <small style={{ color: "var(--ink-soft)" }}>
+          {[o.sizeLabel, o.decoLabel].filter(Boolean).join(" · ")}
+          {(o.sizeLabel || o.decoLabel) ? " — " : ""}{o.customerName} · {o.customerPhone} · {o.customerEmail}{o.nif ? " · NIF " + o.nif : ""}
+        </small>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {o.status === "paid" && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("pickup")} onClick={() => act(o.id, "pickup")}>Marcar levantada</button>}
+          {(o.status === "paid" || o.status === "picked_up") && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("cancel")} onClick={() => act(o.id, "cancel", "Cancelar e reembolsar esta encomenda?")}>Cancelar / reembolsar</button>}
+          <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("resend")} onClick={() => act(o.id, "resend")}>Reenviar email</button>
+          {o.vendusInvoiceId && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("invoice")} onClick={() => invoice(o.id)}>Ver fatura</button>}
+        </div>
+      </div>
+    );
+  };
+
+  // Agenda: agrupar por dia de levantamento
+  const byDay: Record<string, any[]> = {};
+  filtered.forEach((o) => { const k = new Date(o.pickupAt).toISOString().slice(0, 10); (byDay[k] ||= []).push(o); });
+  const days = Object.keys(byDay).sort();
+
   return (
     <>
-      {list.length === 0 && <p className="note">Ainda sem encomendas.</p>}
-      {list.map((o) => (
-        <div className="a-row" key={o.id}>
-          <div className="meta">
-            <b>{o.productName} — {eur(o.total)} <span style={{ color: o.status === "paid" ? "var(--ok)" : "var(--accent)" }}>· {o.status}</span></b>
-            <small>{o.customerName} · {o.customerPhone} · {o.customerEmail}{o.nif ? " · NIF " + o.nif : ""}</small>
-            <small>{o.location?.name} · {new Date(o.pickupAt).toLocaleString("pt-PT")}{o.sizeLabel ? " · " + o.sizeLabel : ""}{o.decoLabel ? " · " + o.decoLabel : ""}</small>
+      <div className="admin-tabs" style={{ marginTop: 0 }}>
+        <button className={view === "agenda" ? "on" : ""} onClick={() => setView("agenda")}>Agenda</button>
+        <button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>Lista</button>
+        <button onClick={exportCsv} style={{ marginLeft: "auto", border: "1px solid var(--line)", padding: "10px 16px", fontFamily: "Jost", fontSize: ".68rem", letterSpacing: ".14em", textTransform: "uppercase" }}>Exportar CSV</button>
+      </div>
+
+      <div className="mini" style={{ marginBottom: 10 }}>
+        <div className="field"><label>Local</label>
+          <select value={fLoc} onChange={(e) => setFLoc(e.target.value)} style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff" }}>
+            <option value="">Todos</option>{locNames.map((n) => <option key={n as string} value={n as string}>{n as string}</option>)}
+          </select></div>
+        <div className="field"><label>Estado</label>
+          <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff" }}>
+            <option value="">Todos</option><option value="paid">Paga</option><option value="picked_up">Levantada</option><option value="cancelled">Cancelada</option>
+          </select></div>
+        <div className="field"><label>Pesquisar</label><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="nome, email, telemóvel…" /></div>
+        <div className="field"><label>De</label><input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} /></div>
+        <div className="field"><label>Até</label><input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></div>
+      </div>
+      <p className="note" style={{ marginBottom: 16 }}><b>{count}</b> encomenda(s) · total <b>{eur(revenue)}</b> (exclui canceladas)</p>
+
+      {filtered.length === 0 && <p className="note">Nenhuma encomenda com estes filtros.</p>}
+
+      {view === "list" && [...filtered].sort((a, b) => new Date(b.pickupAt).getTime() - new Date(a.pickupAt).getTime()).map(orderCard)}
+
+      {view === "agenda" && days.map((k) => {
+        const arr = byDay[k].sort((a, b) => new Date(a.pickupAt).getTime() - new Date(b.pickupAt).getTime());
+        const dayRev = arr.filter((o) => o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
+        const label = new Date(k + "T00:00:00").toLocaleDateString("pt-PT", { weekday: "long", day: "2-digit", month: "long" });
+        return (
+          <div key={k} style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--line-strong)", paddingBottom: 6, marginBottom: 10 }}>
+              <b style={{ fontFamily: "Jost", letterSpacing: ".1em", textTransform: "capitalize" }}>{label}</b>
+              <span className="note" style={{ margin: 0 }}>{arr.length} · {eur(dayRev)}</span>
+            </div>
+            {arr.map(orderCard)}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
 }
