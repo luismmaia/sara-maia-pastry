@@ -5,6 +5,7 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
       // Quando carregares fotos reais (ex.: storage do Render/S3), acrescenta o domínio aqui.
     ],
   },

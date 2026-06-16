@@ -40,53 +40,219 @@ export default function Admin() {
   );
 }
 
+// ---------- Upload Cloudinary (unsigned) ----------
+const CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+const cloudinaryReady = !!(CLOUD && PRESET);
+async function uploadToCloudinary(file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", PRESET as string);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD}/image/upload`, { method: "POST", body: fd });
+  const data = await res.json();
+  if (!data.secure_url) throw new Error(data.error?.message || "Falha no upload");
+  return data.secure_url as string;
+}
+
+type Choice = { choice: string; delta: string };
+type Group = { label: string; choices: Choice[] };
+type Editing = {
+  id?: string; namePt: string; catPt: string; descPt: string;
+  basePrice: string; leadDays: string; trackStock: boolean; stock: string;
+  groups: Group[]; photos: string[];
+};
+const emptyEditing = (): Editing => ({
+  namePt: "", catPt: "", descPt: "", basePrice: "", leadDays: "2",
+  trackStock: false, stock: "", groups: [], photos: [],
+});
+function toEditing(p: any): Editing {
+  // reconstruir grupos a partir das opções (agrupadas por kind)
+  const groups: Group[] = [];
+  (p.options || []).forEach((o: any) => {
+    let g = groups.find((x) => x.label === o.labelPt);
+    if (!g) { g = { label: o.labelPt, choices: [] }; groups.push(g); }
+    g.choices.push({ choice: o.choicePt, delta: (o.priceDelta / 100).toString() });
+  });
+  return {
+    id: p.id, namePt: p.namePt, catPt: p.catPt, descPt: p.descPt,
+    basePrice: (p.basePrice / 100).toString(), leadDays: String(p.leadDays),
+    trackStock: !!p.trackStock, stock: p.stock != null ? String(p.stock) : "",
+    groups, photos: (p.photos || []).map((ph: any) => ph.url),
+  };
+}
+
 function Products() {
   const [list, setList] = useState<any[]>([]);
-  const [f, setF] = useState({ namePt: "", nameEn: "", basePrice: "", catPt: "", photo: "", leadDays: "2", trackStock: false, stock: "" });
+  const [editing, setEditing] = useState<Editing | null>(null);
   const load = () => fetch("/api/admin/products").then((r) => r.json()).then(setList);
   useEffect(() => { load(); }, []);
-  async function add() {
-    if (!f.namePt || !f.basePrice) return;
-    await fetch("/api/admin/products", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        namePt: f.namePt, nameEn: f.nameEn || f.namePt, catPt: f.catPt, basePrice: parseFloat(f.basePrice),
-        leadDays: parseInt(f.leadDays) || 0, trackStock: f.trackStock, stock: f.trackStock ? (parseInt(f.stock) || 0) : null,
-        photos: f.photo ? [f.photo] : [],
-        options: [
-          { kind: "size", labelPt: "Tamanho", labelEn: "Size", choicePt: "20 cm", choiceEn: "20 cm", priceDelta: 0 },
-          { kind: "size", labelPt: "Tamanho", labelEn: "Size", choicePt: "24 cm", choiceEn: "24 cm", priceDelta: 8 },
-        ],
-      }) });
-    setF({ namePt: "", nameEn: "", basePrice: "", catPt: "", photo: "", leadDays: "2", trackStock: false, stock: "" }); load();
+
+  async function toggleActive(p: any) {
+    await fetch(`/api/admin/products/${p.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !p.active }) });
+    load();
   }
-  async function del(id: string) { await fetch(`/api/admin/products/${id}`, { method: "DELETE" }); load(); }
+  async function move(i: number, dir: number) {
+    const j = i + dir; if (j < 0 || j >= list.length) return;
+    const a = list[i], b = list[j];
+    await Promise.all([
+      fetch(`/api/admin/products/${a.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: j }) }),
+      fetch(`/api/admin/products/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }),
+    ]);
+    load();
+  }
+
+  if (editing) return <ProductEditor editing={editing} setEditing={setEditing} onSaved={() => { setEditing(null); load(); }} />;
+
   return (
     <>
-      <p className="note" style={{ marginBottom: 16 }}>Cada produto leva até 2 personalizações (ex.: Tamanho, Decoração) com impacto no preço, e fotos. Aqui em baixo é um formulário rápido; podemos expandir para editar opções e várias fotos.</p>
-      {list.map((p) => (
-        <div className="a-row" key={p.id}>
-          <div className="thumb">{p.photos?.[0] && <img src={p.photos[0].url} />}</div>
-          <div className="meta"><b>{p.namePt}</b><small>{eur(p.basePrice)} · {p.leadDays}d antecedência · {p.trackStock ? `stock: ${p.stock ?? 0}` : "por encomenda"}</small></div>
-          <button className="a-del" onClick={() => del(p.id)}>✕</button>
-        </div>
-      ))}
-      <div className="mini" style={{ marginTop: 14 }}>
-        <div className="field"><label>Nome (PT)</label><input value={f.namePt} onChange={(e) => setF({ ...f, namePt: e.target.value })} /></div>
-        <div className="field"><label>Nome (EN)</label><input value={f.nameEn} onChange={(e) => setF({ ...f, nameEn: e.target.value })} /></div>
-        <div className="field"><label>Preço base (€)</label><input value={f.basePrice} onChange={(e) => setF({ ...f, basePrice: e.target.value })} /></div>
-        <div className="field"><label>Categoria</label><input value={f.catPt} onChange={(e) => setF({ ...f, catPt: e.target.value })} /></div>
-        <div className="field" style={{ gridColumn: "span 2" }}><label>URL da foto</label><input value={f.photo} onChange={(e) => setF({ ...f, photo: e.target.value })} placeholder="https://..." /></div>
-        <div className="field"><label>Antecedência (dias)</label><input value={f.leadDays} onChange={(e) => setF({ ...f, leadDays: e.target.value })} inputMode="numeric" /></div>
-        <div className="field"><label>Stock limitado?</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, height: 42 }}>
-            <input type="checkbox" checked={f.trackStock} onChange={(e) => setF({ ...f, trackStock: e.target.checked })} style={{ width: "auto" }} />
-            <span style={{ fontSize: ".82rem", color: "var(--ink-soft)" }}>{f.trackStock ? "limitado" : "por encomenda"}</span>
+      <button className="btn" style={{ marginBottom: 18 }} onClick={() => setEditing(emptyEditing())}>+ Novo produto</button>
+      {list.map((p, i) => (
+        <div className="a-row" key={p.id} style={p.active ? undefined : { opacity: .5 }}>
+          <div className="thumb">{p.photos?.[0] && <img src={p.photos[0].url} alt="" />}</div>
+          <div className="meta">
+            <b>{p.namePt} {!p.active && <span style={{ color: "var(--accent)" }}>· desativado</span>}</b>
+            <small>{eur(p.basePrice)} · {p.leadDays}d antecedência · {p.trackStock ? `stock: ${p.stock ?? 0}` : "por encomenda"} · {p.options?.length || 0} opções · {p.photos?.length || 0} fotos</small>
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button className="a-del" title="Subir" onClick={() => move(i, -1)}>↑</button>
+            <button className="a-del" title="Descer" onClick={() => move(i, 1)}>↓</button>
+            <button className="btn ghost" style={{ padding: "8px 12px" }} onClick={() => setEditing(toEditing(p))}>Editar</button>
+            <button className="btn ghost" style={{ padding: "8px 12px" }} onClick={() => toggleActive(p)}>{p.active ? "Desativar" : "Ativar"}</button>
           </div>
         </div>
-        {f.trackStock && <div className="field"><label>Unidades em stock</label><input value={f.stock} onChange={(e) => setF({ ...f, stock: e.target.value })} inputMode="numeric" /></div>}
-      </div>
-      <button className="btn ghost" onClick={add}>+ Adicionar produto</button>
+      ))}
     </>
+  );
+}
+
+function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; setEditing: (e: Editing | null) => void; onSaved: () => void }) {
+  const e = editing;
+  const up = (patch: Partial<Editing>) => setEditing({ ...e, ...patch });
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+
+  // grupos / opções
+  function addGroup() { if (e.groups.length < 2) up({ groups: [...e.groups, { label: "", choices: [{ choice: "", delta: "0" }] }] }); }
+  function removeGroup(gi: number) { up({ groups: e.groups.filter((_, i) => i !== gi) }); }
+  function setGroupLabel(gi: number, label: string) { const g = [...e.groups]; g[gi] = { ...g[gi], label }; up({ groups: g }); }
+  function addChoice(gi: number) { const g = [...e.groups]; g[gi] = { ...g[gi], choices: [...g[gi].choices, { choice: "", delta: "0" }] }; up({ groups: g }); }
+  function removeChoice(gi: number, ci: number) { const g = [...e.groups]; g[gi] = { ...g[gi], choices: g[gi].choices.filter((_, i) => i !== ci) }; up({ groups: g }); }
+  function setChoice(gi: number, ci: number, patch: Partial<Choice>) { const g = [...e.groups]; const ch = [...g[gi].choices]; ch[ci] = { ...ch[ci], ...patch }; g[gi] = { ...g[gi], choices: ch }; up({ groups: g }); }
+
+  // fotos
+  async function onFiles(files: FileList | null) {
+    if (!files || !files.length) return;
+    setUploading(true);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files)) urls.push(await uploadToCloudinary(f));
+      up({ photos: [...e.photos, ...urls] });
+    } catch (err: any) { alert("Erro no upload: " + err.message); }
+    setUploading(false);
+  }
+  function removePhoto(i: number) { up({ photos: e.photos.filter((_, idx) => idx !== i) }); }
+  function movePhoto(i: number, dir: number) { const j = i + dir; if (j < 0 || j >= e.photos.length) return; const p = [...e.photos]; [p[i], p[j]] = [p[j], p[i]]; up({ photos: p }); }
+  function addUrl() { if (urlInput.trim()) { up({ photos: [...e.photos, urlInput.trim()] }); setUrlInput(""); } }
+
+  async function save() {
+    if (!e.namePt || !e.basePrice) { alert("Indica pelo menos o nome e o preço base."); return; }
+    const options = e.groups.flatMap((g, gi) =>
+      g.choices.filter((c) => c.choice.trim()).map((c, ci) => ({
+        kind: `g${gi}`, labelPt: g.label || `Opção ${gi + 1}`, choicePt: c.choice,
+        priceDelta: parseFloat(c.delta) || 0, sortOrder: ci,
+      })));
+    const payload = {
+      namePt: e.namePt, catPt: e.catPt, descPt: e.descPt,
+      basePrice: parseFloat(e.basePrice), leadDays: parseInt(e.leadDays) || 0,
+      trackStock: e.trackStock, stock: e.trackStock ? (parseInt(e.stock) || 0) : null,
+      options, photos: e.photos,
+    };
+    setSaving(true);
+    const url = e.id ? `/api/admin/products/${e.id}` : "/api/admin/products";
+    const method = e.id ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    setSaving(false);
+    if (res.ok) onSaved(); else alert("Erro ao guardar.");
+  }
+
+  return (
+    <div>
+      <button className="btn ghost" style={{ marginBottom: 18 }} onClick={() => setEditing(null)}>← Voltar</button>
+      <h3 style={{ fontWeight: 400, letterSpacing: ".06em" }}>{e.id ? "Editar produto" : "Novo produto"}</h3>
+
+      <div className="mini" style={{ marginTop: 14 }}>
+        <div className="field" style={{ gridColumn: "span 2" }}><label>Nome</label><input value={e.namePt} onChange={(ev) => up({ namePt: ev.target.value })} /></div>
+        <div className="field"><label>Preço base (€)</label><input value={e.basePrice} onChange={(ev) => up({ basePrice: ev.target.value })} inputMode="decimal" /></div>
+        <div className="field"><label>Categoria</label><input value={e.catPt} onChange={(ev) => up({ catPt: ev.target.value })} placeholder="ex.: chocolate" /></div>
+        <div className="field"><label>Antecedência (dias)</label><input value={e.leadDays} onChange={(ev) => up({ leadDays: ev.target.value })} inputMode="numeric" /></div>
+        <div className="field" style={{ gridColumn: "span 3" }}><label>Descrição</label><input value={e.descPt} onChange={(ev) => up({ descPt: ev.target.value })} /></div>
+        <div className="field"><label>Stock limitado?</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, height: 42 }}>
+            <input type="checkbox" checked={e.trackStock} onChange={(ev) => up({ trackStock: ev.target.checked })} style={{ width: "auto" }} />
+            <span style={{ fontSize: ".82rem", color: "var(--ink-soft)" }}>{e.trackStock ? "limitado" : "por encomenda"}</span>
+          </div>
+        </div>
+        {e.trackStock && <div className="field"><label>Unidades em stock</label><input value={e.stock} onChange={(ev) => up({ stock: ev.target.value })} inputMode="numeric" /></div>}
+      </div>
+
+      {/* Personalizações */}
+      <div style={{ marginTop: 26 }}>
+        <div className="lbl-u" style={{ marginBottom: 10 }}>Personalizações (até 2)</div>
+        {e.groups.map((g, gi) => (
+          <div key={gi} style={{ border: "1px solid var(--line)", padding: 14, marginBottom: 10, background: "#fff" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 10 }}>
+              <div className="field" style={{ flex: 1, marginBottom: 0 }}><label>Nome da personalização</label>
+                <input value={g.label} onChange={(ev) => setGroupLabel(gi, ev.target.value)} placeholder="ex.: Tamanho / Decoração" /></div>
+              <button className="a-del" title="Remover personalização" onClick={() => removeGroup(gi)}>✕</button>
+            </div>
+            {g.choices.map((c, ci) => (
+              <div key={ci} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                <input style={{ flex: 1, padding: "10px 12px", border: "1px solid var(--line)" }} value={c.choice} onChange={(ev) => setChoice(gi, ci, { choice: ev.target.value })} placeholder="ex.: 24 cm" />
+                <input style={{ width: 120, padding: "10px 12px", border: "1px solid var(--line)" }} value={c.delta} onChange={(ev) => setChoice(gi, ci, { delta: ev.target.value })} inputMode="decimal" placeholder="+€ (0)" />
+                <button className="a-del" onClick={() => removeChoice(gi, ci)}>✕</button>
+              </div>
+            ))}
+            <button className="btn ghost" style={{ padding: "7px 12px", marginTop: 4 }} onClick={() => addChoice(gi)}>+ opção</button>
+          </div>
+        ))}
+        {e.groups.length < 2 && <button className="btn ghost" onClick={addGroup}>+ Adicionar personalização</button>}
+      </div>
+
+      {/* Fotos */}
+      <div style={{ marginTop: 26 }}>
+        <div className="lbl-u" style={{ marginBottom: 10 }}>Fotos (a primeira é a capa)</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          {e.photos.map((url, i) => (
+            <div key={i} style={{ position: "relative", width: 84, height: 84, border: i === 0 ? "2px solid var(--accent)" : "1px solid var(--line)", overflow: "hidden" }}>
+              <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "space-between", background: "rgba(255,255,255,.85)" }}>
+                <button onClick={() => movePhoto(i, -1)} style={{ fontSize: ".7rem", padding: "2px 5px" }}>←</button>
+                <button onClick={() => removePhoto(i)} style={{ fontSize: ".7rem", padding: "2px 5px", color: "var(--accent)" }}>✕</button>
+                <button onClick={() => movePhoto(i, 1)} style={{ fontSize: ".7rem", padding: "2px 5px" }}>→</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {cloudinaryReady ? (
+          <label className="btn ghost" style={{ display: "inline-block", cursor: "pointer" }}>
+            {uploading ? "A carregar…" : "+ Carregar fotos"}
+            <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(ev) => onFiles(ev.target.files)} />
+          </label>
+        ) : (
+          <p className="note">Para carregar fotos por upload, configura o Cloudinary (ver guia). Por agora podes colar um link de imagem:</p>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input style={{ flex: 1, padding: "10px 12px", border: "1px solid var(--line)" }} value={urlInput} onChange={(ev) => setUrlInput(ev.target.value)} placeholder="https://… (colar link de imagem)" />
+          <button className="btn ghost" onClick={addUrl}>+ link</button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 26, display: "flex", gap: 10 }}>
+        <button className="btn" disabled={saving} onClick={save}>{saving ? "A guardar…" : "Guardar produto"}</button>
+        <button className="btn ghost" onClick={() => setEditing(null)}>Cancelar</button>
+      </div>
+    </div>
   );
 }
 

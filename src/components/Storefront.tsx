@@ -30,8 +30,7 @@ export default function Storefront() {
   // ----- product modal state -----
   const [cur, setCur] = useState<Product | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
-  const [sizeOpt, setSizeOpt] = useState<string | null>(null);
-  const [decoOpt, setDecoOpt] = useState<string | null>(null);
+  const [sel, setSel] = useState<Record<string, string>>({}); // kind do grupo -> id da opção
   const [locId, setLocId] = useState<string | null>(null);
   const [cal, setCal] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [dayKey, setDayKey] = useState<string | null>(null);
@@ -42,8 +41,16 @@ export default function Storefront() {
   const [coOpen, setCoOpen] = useState(false);
   const [toast, setToast] = useState("");
 
-  const sizeOpts = useMemo(() => cur?.options.filter((o) => o.kind === "size") ?? [], [cur]);
-  const decoOpts = useMemo(() => cur?.options.filter((o) => o.kind === "deco") ?? [], [cur]);
+  // Agrupa as opções por "kind", preservando a ordem de aparição. Cada grupo = 1 personalização.
+  const groups = useMemo(() => {
+    const out: { kind: string; label: string; choices: Opt[] }[] = [];
+    (cur?.options ?? []).forEach((o) => {
+      let g = out.find((x) => x.kind === o.kind);
+      if (!g) { g = { kind: o.kind, label: lang === "pt" ? o.labelPt : o.labelEn, choices: [] }; out.push(g); }
+      g.choices.push(o);
+    });
+    return out;
+  }, [cur, lang]);
 
   // navegação entre fotos (swipe no telemóvel / arrastar com o rato)
   const dragX = useRef<number | null>(null);
@@ -60,7 +67,7 @@ export default function Storefront() {
   }
 
   function openProduct(p: Product) {
-    setCur(p); setPhotoIdx(0); setSizeOpt(null); setDecoOpt(null);
+    setCur(p); setPhotoIdx(0); setSel({});
     setLocId(locations[0]?.id ?? null); setDayKey(null); setSlotId(null);
     const d = new Date(); setCal({ y: d.getFullYear(), m: d.getMonth() });
     document.body.style.overflow = "hidden";
@@ -70,11 +77,15 @@ export default function Storefront() {
   const price = useMemo(() => {
     if (!cur) return 0;
     let p = cur.basePrice;
-    const s = sizeOpts.find((o) => o.id === sizeOpt); const dd = decoOpts.find((o) => o.id === decoOpt);
-    if (s) p += s.priceDelta; if (dd) p += dd.priceDelta; return p;
-  }, [cur, sizeOpt, decoOpt, sizeOpts, decoOpts]);
+    for (const g of groups) {
+      const chosen = g.choices.find((o) => o.id === sel[g.kind]);
+      if (chosen) p += chosen.priceDelta;
+    }
+    return p;
+  }, [cur, groups, sel]);
 
-  const ready = !!(sizeOpt && decoOpt && slotId) && !(cur && soldOut(cur));
+  const allGroupsChosen = groups.every((g) => !!sel[g.kind]);
+  const ready = allGroupsChosen && !!slotId && !(cur && soldOut(cur));
 
   // calendar helpers
   const key = (y: number, m: number, d: number) => `${y}-${m}-${d}`;
@@ -90,12 +101,15 @@ export default function Storefront() {
   function addToOrder() {
     if (!ready || !cur) { setToastMsg(t("t_need")); return; }
     const s = slots.find((x) => x.id === slotId)!; const loc = locations.find((l) => l.id === locId)!;
-    const sl = sizeOpts.find((o) => o.id === sizeOpt)!; const dl = decoOpts.find((o) => o.id === decoOpt)!;
+    const optionIds = groups.map((g) => sel[g.kind]);
+    const optsText = groups.map((g) => {
+      const c = g.choices.find((o) => o.id === sel[g.kind])!;
+      return `${g.label}: ${lang === "pt" ? c.choicePt : c.choiceEn}`;
+    });
     setOrder({
-      productId: cur.id, sizeOptionId: sizeOpt, decoOptionId: decoOpt, slotId,
+      productId: cur.id, optionIds, slotId,
       name: lang === "pt" ? cur.namePt : cur.nameEn,
-      size: lang === "pt" ? sl.choicePt : sl.choiceEn, deco: lang === "pt" ? dl.choicePt : dl.choiceEn,
-      locName: loc.name, pickup: new Date(s.startsAt), total: price,
+      optsText, locName: loc.name, pickup: new Date(s.startsAt), total: price,
     });
     setCur(null); setCoOpen(true);
   }
@@ -210,24 +224,16 @@ export default function Storefront() {
                   {lowStock(cur) && <span style={{ marginLeft: 12 }}>· {t("left").replace("{n}", String(cur.stock))}</span>}
                 </div>
 
-                {sizeOpts.length > 0 && (
-                  <div className="opt-group"><div className="lbl">{lang === "pt" ? sizeOpts[0].labelPt : sizeOpts[0].labelEn}</div>
-                    <div className="opts">{sizeOpts.map((o) => (
-                      <button key={o.id} className={"opt" + (sizeOpt === o.id ? " on" : "")} onClick={() => setSizeOpt(o.id)}>
+                {groups.map((g) => (
+                  <div className="opt-group" key={g.kind}>
+                    <div className="lbl">{g.label}</div>
+                    <div className="opts">{g.choices.map((o) => (
+                      <button key={o.id} className={"opt" + (sel[g.kind] === o.id ? " on" : "")} onClick={() => setSel((prev) => ({ ...prev, [g.kind]: o.id }))}>
                         <span>{lang === "pt" ? o.choicePt : o.choiceEn}</span>{o.priceDelta > 0 && <span className="delta">+{eur(o.priceDelta)}</span>}
                       </button>))}
                     </div>
                   </div>
-                )}
-                {decoOpts.length > 0 && (
-                  <div className="opt-group"><div className="lbl">{lang === "pt" ? decoOpts[0].labelPt : decoOpts[0].labelEn}</div>
-                    <div className="opts">{decoOpts.map((o) => (
-                      <button key={o.id} className={"opt" + (decoOpt === o.id ? " on" : "")} onClick={() => setDecoOpt(o.id)}>
-                        <span>{lang === "pt" ? o.choicePt : o.choiceEn}</span>{o.priceDelta > 0 && <span className="delta">+{eur(o.priceDelta)}</span>}
-                      </button>))}
-                    </div>
-                  </div>
-                )}
+                ))}
 
                 <div className="pickup">
                   <div className="lbl-u" style={{ marginBottom: 10 }}>{t("pk_loc")}</div>
@@ -248,7 +254,7 @@ export default function Storefront() {
               </div>
             </div>
             <div className="p-foot">
-              <div className="p-total"><small>{t("p_total")}</small><b>{sizeOpt && decoOpt ? eur(price) : "—"}</b></div>
+              <div className="p-total"><small>{t("p_total")}</small><b>{allGroupsChosen ? eur(price) : "—"}</b></div>
               <button className="btn" disabled={!ready} onClick={addToOrder}>{cur && soldOut(cur) ? t("sold_out") : t("p_add")}</button>
             </div>
           </>
@@ -322,7 +328,7 @@ function Checkout({ lang, order, onDone, setToast }: any) {
       const res = await fetch("/api/orders", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          productId: order.productId, sizeOptionId: order.sizeOptionId, decoOptionId: order.decoOptionId,
+          productId: order.productId, optionIds: order.optionIds,
           slotId: order.slotId,
           customer: { name: f.name, phone: f.phone, email: f.email, nif: wantInvoice ? f.nif : null, wantInvoice },
         }),
@@ -338,8 +344,7 @@ function Checkout({ lang, order, onDone, setToast }: any) {
     <>
       <div className="summary">
         <div className="row"><span>{order.name}</span><b style={{ color: "var(--ink)" }}>{eur(order.total)}</b></div>
-        <div className="row"><span>{order.size}</span></div>
-        <div className="row"><span>{order.deco}</span></div>
+        {(order.optsText || []).map((line: string, i: number) => (<div className="row" key={i}><span>{line}</span></div>))}
         <div className="row"><span>{order.locName}</span></div>
         <div className="row"><span>{order.pickup.toLocaleString(lang === "pt" ? "pt-PT" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</span></div>
         <div className="row tot"><span>Total</span><span>{eur(order.total)}</span></div>

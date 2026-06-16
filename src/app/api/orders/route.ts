@@ -7,28 +7,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Pagamentos ainda não configurados (modo de testes de design)." }, { status: 503 });
   }
   const b = await req.json();
-  const { productId, sizeOptionId, decoOptionId, slotId, customer } = b;
+  const { productId, optionIds, slotId, customer } = b;
 
   if (!productId || !slotId || !customer?.name || !customer?.phone || !customer?.email) {
     return NextResponse.json({ error: "Dados em falta." }, { status: 400 });
   }
 
   const product = await prisma.product.findUnique({
-    where: { id: productId }, include: { options: true },
+    where: { id: productId }, include: { options: { orderBy: { sortOrder: "asc" } } },
   });
   if (!product || !product.active) return NextResponse.json({ error: "Produto indisponível." }, { status: 404 });
 
+  // Ordem dos grupos (kinds) tal como aparecem nas opções do produto
+  const groupOrder: string[] = [];
+  for (const o of product.options) if (!groupOrder.includes(o.kind)) groupOrder.push(o.kind);
+
   // Preço calculado SEMPRE no servidor (nunca confiar no preço do cliente)
   let total = product.basePrice;
-  let sizeLabel: string | null = null, decoLabel: string | null = null;
-  for (const optId of [sizeOptionId, decoOptionId]) {
+  const chosenByGroup: Record<string, string> = {}; // kind -> choicePt
+  for (const optId of (optionIds || [])) {
     if (!optId) continue;
     const o = product.options.find((x) => x.id === optId);
     if (!o) return NextResponse.json({ error: "Opção inválida." }, { status: 400 });
     total += o.priceDelta;
-    if (o.kind === "size") sizeLabel = o.choicePt;
-    if (o.kind === "deco") decoLabel = o.choicePt;
+    chosenByGroup[o.kind] = o.choicePt;
   }
+  // Exige uma escolha por cada grupo do produto
+  for (const k of groupOrder) {
+    if (!chosenByGroup[k]) return NextResponse.json({ error: "Faltam personalizações por escolher." }, { status: 400 });
+  }
+  // Guarda os rótulos nos 2 campos de snapshot (1.º e 2.º grupo)
+  const sizeLabel: string | null = groupOrder[0] ? chosenByGroup[groupOrder[0]] : null;
+  const decoLabel: string | null = groupOrder[1] ? chosenByGroup[groupOrder[1]] : null;
 
   const slot = await prisma.slot.findUnique({ where: { id: slotId }, include: { location: true } });
   if (!slot || !slot.active || slot.startsAt < new Date() || slot.booked >= slot.capacity) {

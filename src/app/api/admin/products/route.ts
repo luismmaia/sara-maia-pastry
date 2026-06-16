@@ -19,8 +19,8 @@ export async function POST(req: Request) {
   const product = await prisma.product.create({
     data: {
       namePt: b.namePt, nameEn: b.nameEn || b.namePt,
-      descPt: b.descPt || "", descEn: b.descEn || "",
-      catPt: b.catPt || "", catEn: b.catEn || "",
+      descPt: b.descPt || "", descEn: b.descEn || b.descPt || "",
+      catPt: b.catPt || "", catEn: b.catEn || b.catPt || "",
       basePrice: Math.round((b.basePrice || 0) * 100),
       leadDays: b.leadDays ?? 2,
       trackStock: !!b.trackStock,

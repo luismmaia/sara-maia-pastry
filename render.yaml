@@ -42,6 +42,10 @@ services:
         generateValue: true    # o Render gera uma chave segura sozinho
       - key: NEXT_PUBLIC_SITE_URL
         sync: false
+      - key: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET
+        sync: false
 
 databases:
   - name: sara-maia-db
