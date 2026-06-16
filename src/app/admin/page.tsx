@@ -6,7 +6,7 @@ const eur = (c: number) => "€" + (c / 100).toFixed(2);
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
   const [pass, setPass] = useState("");
-  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders">("prod");
+  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders" | "settings">("prod");
 
   async function login() {
     const r = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass }) });
@@ -33,11 +33,13 @@ export default function Admin() {
         <button className={tab === "slot" ? "on" : ""} onClick={() => setTab("slot")}>Horários</button>
         <button className={tab === "locs" ? "on" : ""} onClick={() => setTab("locs")}>Locais</button>
         <button className={tab === "orders" ? "on" : ""} onClick={() => setTab("orders")}>Encomendas</button>
+        <button className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Definições</button>
       </div>
       {tab === "prod" && <Products />}
       {tab === "slot" && <Slots />}
       {tab === "locs" && <Locations />}
       {tab === "orders" && <Orders />}
+      {tab === "settings" && <Settings />}
     </div>
   );
 }
@@ -368,6 +370,7 @@ function Slots() {
 
 const ORDER_ST: Record<string, { label: string; color: string }> = {
   paid: { label: "Paga", color: "var(--accent)" },
+  unpaid: { label: "Não paga", color: "#B07A1E" },
   picked_up: { label: "Levantada", color: "var(--ok)" },
   cancelled: { label: "Cancelada", color: "var(--ink-soft)" },
   pending: { label: "Por pagar", color: "var(--ink-soft)" },
@@ -380,8 +383,28 @@ function Orders() {
   const [fLoc, setFLoc] = useState(""); const [fStatus, setFStatus] = useState("");
   const [fFrom, setFFrom] = useState(""); const [fTo, setFTo] = useState(""); const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string>("");
+  const [slots, setSlots] = useState<any[]>([]);
+  const [slotLocs, setSlotLocs] = useState<any[]>([]);
+  const [showManual, setShowManual] = useState(false);
+  const [man, setMan] = useState({ description: "", price: "", slotId: "", customerName: "", customerPhone: "", customerEmail: "", nif: "", status: "paid" });
   const load = () => fetch("/api/admin/orders").then((r) => r.json()).then((d) => setOrders(Array.isArray(d) ? d : []));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); fetch("/api/admin/slots").then((r) => r.json()).then((d) => { setSlots(d.slots || []); setSlotLocs(d.locations || []); }).catch(() => {}); }, []);
+  const slotLabel = (s: any) => {
+    const loc = slotLocs.find((l) => l.id === s.locationId)?.name || "";
+    return `${loc} — ${new Date(s.startsAt).toLocaleString("pt-PT", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} (${s.booked}/${s.capacity})`;
+  };
+
+  async function createManual() {
+    if (!man.description || man.price === "" || !man.slotId) { alert("Indica descrição, preço e horário."); return; }
+    setBusy("manual");
+    try {
+      const res = await fetch("/api/admin/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(man) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) alert(d.error || "Não foi possível criar.");
+      else { setShowManual(false); setMan({ description: "", price: "", slotId: "", customerName: "", customerPhone: "", customerEmail: "", nif: "", status: "paid" }); load(); }
+    } catch { alert("Erro de ligação."); }
+    setBusy("");
+  }
 
   const locNames = Array.from(new Set(orders.map((o) => o.location?.name).filter(Boolean)));
 
@@ -459,8 +482,9 @@ function Orders() {
           {(o.sizeLabel || o.decoLabel) ? " — " : ""}{o.customerName} · {o.customerPhone} · {o.customerEmail}{o.nif ? " · NIF " + o.nif : ""}
         </small>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {o.status === "unpaid" && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("mark-paid")} onClick={() => act(o.id, "mark-paid")}>Marcar como paga</button>}
           {o.status === "paid" && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("pickup")} onClick={() => act(o.id, "pickup")}>Marcar levantada</button>}
-          {(o.status === "paid" || o.status === "picked_up") && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("cancel")} onClick={() => act(o.id, "cancel", "Cancelar e reembolsar esta encomenda?")}>Cancelar / reembolsar</button>}
+          {(o.status === "paid" || o.status === "picked_up" || o.status === "unpaid") && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("cancel")} onClick={() => act(o.id, "cancel", "Cancelar e reembolsar esta encomenda?")}>Cancelar / reembolsar</button>}
           <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("resend")} onClick={() => act(o.id, "resend")}>Reenviar email</button>
           {o.vendusInvoiceId && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("invoice")} onClick={() => invoice(o.id)}>Ver fatura</button>}
           <button className="btn ghost" style={{ padding: "7px 12px", borderColor: "var(--accent)", color: "var(--accent)" }} disabled={b("delete")} onClick={() => delOrder(o.id)}>Apagar</button>
@@ -496,6 +520,31 @@ function Orders() {
         <div className="field"><label>Até</label><input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} /></div>
       </div>
       <p className="note" style={{ marginBottom: 16 }}><b>{count}</b> encomenda(s) · total <b>{eur(revenue)}</b> (exclui canceladas)</p>
+
+      <button className="btn ghost" style={{ marginBottom: 16 }} onClick={() => setShowManual((v) => !v)}>{showManual ? "Fechar" : "+ Nova encomenda manual"}</button>
+      {showManual && (
+        <div style={{ border: "1px solid var(--line)", padding: 16, marginBottom: 18, background: "#fff" }}>
+          <p className="note" style={{ marginTop: 0 }}>Encomenda sem produto associado, ligada a um horário. Pode ficar "Não paga".</p>
+          <div className="mini">
+            <div className="field" style={{ gridColumn: "span 2" }}><label>Descrição</label><input value={man.description} onChange={(e) => setMan({ ...man, description: e.target.value })} placeholder="ex.: Bolo de aniversário personalizado" /></div>
+            <div className="field"><label>Preço (€)</label><input value={man.price} onChange={(e) => setMan({ ...man, price: e.target.value })} inputMode="decimal" /></div>
+            <div className="field" style={{ gridColumn: "span 2" }}><label>Horário</label>
+              <select value={man.slotId} onChange={(e) => setMan({ ...man, slotId: e.target.value })} style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff" }}>
+                <option value="">Escolher horário…</option>
+                {slots.map((s) => <option key={s.id} value={s.id}>{slotLabel(s)}</option>)}
+              </select></div>
+            <div className="field"><label>Estado</label>
+              <select value={man.status} onChange={(e) => setMan({ ...man, status: e.target.value })} style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff" }}>
+                <option value="paid">Paga</option><option value="unpaid">Não paga</option>
+              </select></div>
+            <div className="field"><label>Cliente</label><input value={man.customerName} onChange={(e) => setMan({ ...man, customerName: e.target.value })} /></div>
+            <div className="field"><label>Telemóvel</label><input value={man.customerPhone} onChange={(e) => setMan({ ...man, customerPhone: e.target.value })} /></div>
+            <div className="field"><label>Email</label><input value={man.customerEmail} onChange={(e) => setMan({ ...man, customerEmail: e.target.value })} /></div>
+            <div className="field"><label>NIF (opcional)</label><input value={man.nif} onChange={(e) => setMan({ ...man, nif: e.target.value })} /></div>
+          </div>
+          <button className="btn" style={{ marginTop: 12 }} disabled={busy === "manual"} onClick={createManual}>{busy === "manual" ? "A criar…" : "Criar encomenda"}</button>
+        </div>
+      )}
 
       {filtered.length === 0 && <p className="note">Nenhuma encomenda com estes filtros.</p>}
 
@@ -586,6 +635,28 @@ function Locations() {
             placeholder="Morada, indicações, contacto, estacionamento…" /></div>
         <button className="btn ghost" onClick={add}>+ Adicionar local</button>
       </div>
+    </>
+  );
+}
+
+function Settings() {
+  const [hours, setHours] = useState("24");
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { fetch("/api/admin/settings").then((r) => r.json()).then((d) => setHours(String(d.lastMinuteHours ?? "24"))).catch(() => {}); }, []);
+  async function save() {
+    setSaved(false);
+    const res = await fetch("/api/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lastMinuteHours: parseInt(hours) || 24 }) });
+    if (res.ok) setSaved(true);
+  }
+  return (
+    <>
+      <p className="note" style={{ marginBottom: 16 }}>Definições gerais da loja.</p>
+      <div className="field" style={{ maxWidth: 320 }}>
+        <label>Secção "Última hora" — mostrar produtos com levantamento nas próximas (horas)</label>
+        <input value={hours} onChange={(e) => { setHours(e.target.value); setSaved(false); }} inputMode="numeric" />
+      </div>
+      <button className="btn" onClick={save}>Guardar</button>
+      {saved && <span style={{ marginLeft: 12, color: "var(--ok)", fontSize: ".85rem" }}>Guardado.</span>}
     </>
   );
 }

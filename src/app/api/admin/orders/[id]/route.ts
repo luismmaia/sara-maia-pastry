@@ -12,9 +12,9 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   if (!order) return NextResponse.json({ error: "Não encontrada." }, { status: 404 });
 
   const ops: any[] = [];
-  if (order.status === "paid" || order.status === "picked_up") {
+  if (order.status === "paid" || order.status === "picked_up" || order.status === "unpaid") {
     ops.push(prisma.slot.update({ where: { id: order.slotId }, data: { booked: { decrement: 1 } } }));
-    if (order.product.trackStock) ops.push(prisma.product.update({ where: { id: order.productId }, data: { stock: { increment: 1 } } }));
+    if (order.product?.trackStock) ops.push(prisma.product.update({ where: { id: order.productId! }, data: { stock: { increment: 1 } } }));
   }
   ops.push(prisma.order.delete({ where: { id: order.id } }));
   await prisma.$transaction(ops);

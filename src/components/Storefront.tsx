@@ -17,6 +17,8 @@ type Slot = { id: string; locationId: string; startsAt: string; productId: strin
 
 export default function Storefront() {
   const [lang, setLang] = useState<Lang>("pt");
+  const [lastMinuteHours, setLastMinuteHours] = useState(24);
+  const [menuFilter, setMenuFilter] = useState<"all" | "available">("all");
   const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -26,7 +28,7 @@ export default function Storefront() {
 
   useEffect(() => {
     fetch("/api/products", { cache: "no-store" }).then((r) => r.json()).then(setProducts).catch(() => {});
-    fetch("/api/availability", { cache: "no-store" }).then((r) => r.json()).then((d) => { setLocations(d.locations || []); setSlots(d.slots || []); }).catch(() => {});
+    fetch("/api/availability", { cache: "no-store" }).then((r) => r.json()).then((d) => { setLocations(d.locations || []); setSlots(d.slots || []); if (d.lastMinuteHours) setLastMinuteHours(Number(d.lastMinuteHours) || 24); }).catch(() => {});
   }, []);
 
   // ----- product modal state -----
@@ -126,7 +128,7 @@ export default function Storefront() {
 
   // "Última hora": produtos com algum horário disponível nas próximas 24h (respeitando antecedência e compatibilidade)
   const lastMinute = useMemo(() => {
-    const now = Date.now(); const horizon = now + 24 * 3600 * 1000;
+    const now = Date.now(); const horizon = now + lastMinuteHours * 3600 * 1000;
     return products.filter((p) => {
       if (soldOut(p)) return false;
       const minMs = now + (p.leadHours || 0) * 3600 * 1000;
@@ -136,7 +138,24 @@ export default function Storefront() {
         return (!s.productId || s.productId === p.id) && (!p.dedicatedSlotsOnly || s.productId === p.id);
       });
     });
+  }, [products, slots, lastMinuteHours]);
+
+  // Produtos que é possível encomendar agora (têm algum horário futuro compatível)
+  const orderableSet = useMemo(() => {
+    const now = Date.now(); const set = new Set<string>();
+    products.forEach((p) => {
+      if (soldOut(p)) return;
+      const minMs = now + (p.leadHours || 0) * 3600 * 1000;
+      const ok = slots.some((s) => {
+        const ms = new Date(s.startsAt).getTime();
+        if (ms < minMs) return false;
+        return (!s.productId || s.productId === p.id) && (!p.dedicatedSlotsOnly || s.productId === p.id);
+      });
+      if (ok) set.add(p.id);
+    });
+    return set;
   }, [products, slots]);
+  const menuProducts = menuFilter === "available" ? products.filter((p) => orderableSet.has(p.id)) : products;
 
   const card = (p: Product) => (
     <div className="card" key={p.id} onClick={() => openProduct(p)} style={soldOut(p) ? { opacity: .6 } : undefined}>
@@ -201,10 +220,16 @@ export default function Storefront() {
       <section className="section" id="collection" style={{ paddingTop: lastMinute.length > 0 ? 10 : 56 }}>
         <div className="sec-head">
           <div><span className="eyebrow">{t("col_eyebrow")}</span></div>
-          <span className="count">{products.length} {lang === "pt" ? "referências" : "references"}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div className="menu-toggle">
+              <button className={menuFilter === "all" ? "on" : ""} onClick={() => setMenuFilter("all")}>{t("show_all")}</button>
+              <button className={menuFilter === "available" ? "on" : ""} onClick={() => setMenuFilter("available")}>{t("show_available")}</button>
+            </div>
+            <span className="count">{menuProducts.length} {lang === "pt" ? "referências" : "references"}</span>
+          </div>
         </div>
         <div className="grid">
-          {products.map(card)}
+          {menuProducts.map(card)}
         </div>
       </section>
 

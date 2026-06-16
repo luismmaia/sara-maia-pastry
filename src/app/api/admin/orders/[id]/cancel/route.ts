@@ -27,9 +27,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const ops: any[] = [
     prisma.order.update({ where: { id: order.id }, data: { status: "cancelled", cancelledAt: new Date() } }),
   ];
-  if (order.status === "paid" || order.status === "picked_up") {
+  if (order.status === "paid" || order.status === "picked_up" || order.status === "unpaid") {
     ops.push(prisma.slot.update({ where: { id: order.slotId }, data: { booked: { decrement: 1 } } }));
-    if (order.product.trackStock) ops.push(prisma.product.update({ where: { id: order.productId }, data: { stock: { increment: 1 } } }));
+    if (order.product?.trackStock) ops.push(prisma.product.update({ where: { id: order.productId! }, data: { stock: { increment: 1 } } }));
   }
   await prisma.$transaction(ops);
   return NextResponse.json({ ok: true, refunded });

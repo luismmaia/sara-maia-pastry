@@ -27,8 +27,8 @@ export async function POST(req: Request) {
           prisma.slot.update({ where: { id: order.slotId }, data: { booked: { increment: 1 } } }),
         ];
         // Stock limitado: abater 1 unidade (sem ficar negativo)
-        if (order.product.trackStock && (order.product.stock ?? 0) > 0) {
-          ops.push(prisma.product.update({ where: { id: order.productId }, data: { stock: { decrement: 1 } } }));
+        if (order.product?.trackStock && (order.product?.stock ?? 0) > 0) {
+          ops.push(prisma.product.update({ where: { id: order.productId! }, data: { stock: { decrement: 1 } } }));
         }
         await prisma.$transaction(ops);
         // Fatura Vendus (se configurado)

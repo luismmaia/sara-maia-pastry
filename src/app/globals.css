@@ -36,6 +36,9 @@ header{position:sticky;top:0;z-index:40;background:rgba(242,241,238,.82);backdro
 .section{max-width:1240px;margin:0 auto;padding:40px 24px 90px}
 .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding-top:20px;margin-bottom:46px}
 .sec-head h2{font-size:clamp(1.5rem,3vw,2.1rem);margin:6px 0 0}
+.menu-toggle{display:flex;gap:2px;font-family:'Jost';font-size:.66rem;letter-spacing:.14em;text-transform:uppercase}
+.menu-toggle button{padding:6px 10px;color:var(--ink-soft);border-bottom:1px solid transparent;transition:.2s}
+.menu-toggle button.on{color:var(--ink);border-bottom:1px solid var(--accent)}
 .sec-head .count{font-family:'Jost';font-size:.7rem;letter-spacing:.2em;color:var(--ink-soft)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 18px}
 .card{cursor:pointer}
