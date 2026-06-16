@@ -196,6 +196,12 @@ export default function Storefront() {
               <span style={{ opacity: .3 }}>/</span>
               <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>EN</button>
             </div>
+            <a href="/conta" className="acct" aria-label={t("nav_account")} title={t("nav_account")} style={{ display: "inline-flex", alignItems: "center" }}>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="3.4" />
+                <path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" />
+              </svg>
+            </a>
             <button className="cart-btn" aria-label={t("nav_order")} title={t("nav_order")} onClick={() => setCoOpen(true)}>
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 7h12l-1 13H7L6 7z" />
@@ -379,8 +385,14 @@ function prev(y: number, m: number, d: number) { m += d; if (m < 0) { m = 11; y-
 /* ---------- Checkout with Stripe ---------- */
 function Checkout({ lang, order, onDone, setToast }: any) {
   const t = (k: string) => T[lang as Lang][k] ?? k;
-  const [mode, setMode] = useState<"guest" | "account">("guest");
+  const [me, setMe] = useState<any>(null);
+  const [createAcc, setCreateAcc] = useState(false);
   const [f, setF] = useState({ name: "", phone: "", email: "", pass: "", nif: "" });
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => {
+      if (d.user) { setMe(d.user); setF((p) => ({ ...p, name: d.user.name || "", phone: d.user.phone || "", email: d.user.email || "", nif: d.user.nif || "" })); }
+    }).catch(() => {});
+  }, []);
   const [wantInvoice, setWantInvoice] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -390,6 +402,15 @@ function Checkout({ lang, order, onDone, setToast }: any) {
     if (!f.name || !f.phone || !f.email) { setToast(t("t_fill")); return; }
     setBusy(true);
     try {
+      // Criar conta opcional (só se não houver sessão e o cliente tiver pedido)
+      if (!me && createAcc) {
+        if ((f.pass || "").length < 6) { setToast(lang === "pt" ? "Palavra-passe: mínimo 6 caracteres." : "Password: at least 6 characters."); setBusy(false); return; }
+        const r = await fetch("/api/auth/register", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: f.email, password: f.pass, name: f.name, phone: f.phone, nif: wantInvoice ? f.nif : null }),
+        });
+        if (!r.ok) { const e = await r.json().catch(() => ({})); setToast(e.error || (lang === "pt" ? "Não foi possível criar a conta." : "Could not create account.")); setBusy(false); return; }
+      }
       const res = await fetch("/api/orders", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -417,14 +438,18 @@ function Checkout({ lang, order, onDone, setToast }: any) {
 
       {!clientSecret ? (
         <>
-          <div className="seg">
-            <button className={mode === "guest" ? "on" : ""} onClick={() => setMode("guest")}>{t("co_guest")}</button>
-            <button className={mode === "account" ? "on" : ""} onClick={() => setMode("account")}>{t("co_account")}</button>
-          </div>
+          {me ? (
+            <p className="note" style={{ marginTop: 0, marginBottom: 14 }}>{lang === "pt" ? "Sessão iniciada como" : "Signed in as"} <b style={{ color: "var(--ink)" }}>{me.email}</b> · <a href="/conta" style={{ color: "var(--accent)" }}>{lang === "pt" ? "a minha conta" : "my account"}</a></p>
+          ) : (
+            <p className="note" style={{ marginTop: 0, marginBottom: 14 }}>{lang === "pt" ? "Tens conta?" : "Have an account?"} <a href="/conta" style={{ color: "var(--accent)" }}>{lang === "pt" ? "Entrar" : "Sign in"}</a></p>
+          )}
           <div className="field"><label>{t("f_name")}</label><input value={f.name} onChange={(e) => set("name", e.target.value)} /></div>
           <div className="field"><label>{t("f_phone")}</label><input value={f.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+351 ___ ___ ___" /></div>
-          <div className="field"><label>{t("f_email")}</label><input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></div>
-          {mode === "account" && <div className="field"><label>{t("f_pass")}</label><input type="password" value={f.pass} onChange={(e) => set("pass", e.target.value)} /></div>}
+          <div className="field"><label>{t("f_email")}</label><input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} disabled={!!me} /></div>
+          {!me && (
+            <label className="check"><input type="checkbox" checked={createAcc} onChange={(e) => setCreateAcc(e.target.checked)} /><span>{lang === "pt" ? "Criar conta com estes dados (guardar histórico)" : "Create an account with these details"}</span></label>
+          )}
+          {!me && createAcc && <div className="field"><label>{t("f_pass")}</label><input type="password" value={f.pass} onChange={(e) => set("pass", e.target.value)} placeholder={lang === "pt" ? "mínimo 6 caracteres" : "min 6 characters"} /></div>}
           <label className="check"><input type="checkbox" checked={wantInvoice} onChange={(e) => setWantInvoice(e.target.checked)} /><span>{t("f_inv")}</span></label>
           {wantInvoice && <div className="field"><label>{t("f_nif")}</label><input value={f.nif} onChange={(e) => set("nif", e.target.value)} inputMode="numeric" /></div>}
 

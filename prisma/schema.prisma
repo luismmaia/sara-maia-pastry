@@ -87,6 +87,7 @@ model User {
   passwordHash String
   name         String?
   phone        String?
+  nif          String?
   orders       Order[]
   createdAt    DateTime @default(now())
 }

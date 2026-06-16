@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { stripe, stripeConfigured } from "@/lib/stripe";
+import { verifyUserToken } from "@/lib/auth";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -73,6 +75,7 @@ export async function POST(req: Request) {
       locationId: slot.locationId, slotId: slot.id, pickupAt: slot.startsAt,
       customerName: customer.name, customerPhone: customer.phone, customerEmail: customer.email,
       nif: customer.nif || null, wantInvoice: !!customer.wantInvoice, status: "pending",
+      userId: (await verifyUserToken(cookies().get("sm_user")?.value)) || null,
     },
   });
 

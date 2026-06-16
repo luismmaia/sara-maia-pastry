@@ -151,6 +151,6 @@ footer .fnote a:hover{color:var(--accent)}
 .mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.mini .field{margin-bottom:0}
 .slotmgr-day{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px;border:1px solid var(--line);background:#fff;margin-bottom:8px}
 .chip{background:var(--ok-soft);color:var(--ok);font-family:'Jost';font-size:.68rem;letter-spacing:.06em;padding:5px 10px;display:inline-flex;gap:6px;align-items:center}.chip button{color:var(--ok)}
-@media(max-width:880px){.grid{grid-template-columns:repeat(2,1fr)}.p-body{grid-template-columns:1fr}.strip-in{grid-template-columns:1fr}.strip-pts{border-left:none;border-top:1px solid #555;padding:24px 0 0}.hero-meta{display:none}.nav-links a{display:none}.mini{grid-template-columns:1fr}}
+@media(max-width:880px){.grid{grid-template-columns:repeat(2,1fr)}.p-body{grid-template-columns:1fr}.strip-in{grid-template-columns:1fr}.strip-pts{border-left:none;border-top:1px solid #555;padding:24px 0 0}.hero-meta{display:none}.nav-links a{display:none}.nav-links a.acct{display:inline-flex}.mini{grid-template-columns:1fr}}
 @media(max-width:560px){.grid{grid-template-columns:1fr 1fr;gap:10px}.nav{gap:14px;padding:12px 18px}.section,.hero{padding-left:18px;padding-right:18px}.p-info,.co-body{padding-left:20px;padding-right:20px}}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}

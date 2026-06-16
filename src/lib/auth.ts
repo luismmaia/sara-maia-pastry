@@ -16,3 +16,20 @@ export async function verifyAdminToken(token?: string) {
     return false;
   }
 }
+
+// ----- Sessão de cliente -----
+export async function signUserToken(userId: string) {
+  return new SignJWT({ uid: userId })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("30d")
+    .sign(secret);
+}
+export async function verifyUserToken(token?: string): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    return typeof payload.uid === "string" ? payload.uid : null;
+  } catch {
+    return null;
+  }
+}
