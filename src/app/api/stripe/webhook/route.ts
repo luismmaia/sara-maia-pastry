@@ -41,6 +41,7 @@ export async function POST(req: Request) {
         await sendOrderEmails({
           productName: order.productName, sizeLabel: order.sizeLabel, decoLabel: order.decoLabel,
           total: order.total, pickupAt: order.pickupAt, locationName: order.location.name,
+          locationInstructions: order.location.instructions,
           customerName: order.customerName, customerEmail: order.customerEmail,
         });
       }

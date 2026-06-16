@@ -14,11 +14,13 @@ async function main() {
   // Locais (upsert por slug, para não duplicar)
   const maia = await db.location.upsert({
     where: { slug: "maia" }, update: {},
-    create: { name: "Atelier · Maia", slug: "maia", sortOrder: 0 },
+    create: { name: "Atelier · Maia", slug: "maia", sortOrder: 0,
+      instructions: "Rua das Flores, 12 · 4470 Maia. Toca à campainha 2B. Há estacionamento à porta. Em caso de dúvida liga para 9xx xxx xxx." },
   });
   await db.location.upsert({
     where: { slug: "porto" }, update: {},
-    create: { name: "Ponto · Porto", slug: "porto", sortOrder: 1, active: true },
+    create: { name: "Ponto · Porto", slug: "porto", sortOrder: 1, active: true,
+      instructions: "Levantamento combinado no centro do Porto. As indicações exatas seguem por mensagem após a encomenda." },
   });
 
   const items = [

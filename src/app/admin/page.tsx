@@ -6,7 +6,7 @@ const eur = (c: number) => "€" + (c / 100).toFixed(2);
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
   const [pass, setPass] = useState("");
-  const [tab, setTab] = useState<"prod" | "slot" | "orders">("prod");
+  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders">("prod");
 
   async function login() {
     const r = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass }) });
@@ -31,10 +31,12 @@ export default function Admin() {
       <div className="admin-tabs">
         <button className={tab === "prod" ? "on" : ""} onClick={() => setTab("prod")}>Produtos</button>
         <button className={tab === "slot" ? "on" : ""} onClick={() => setTab("slot")}>Horários</button>
+        <button className={tab === "locs" ? "on" : ""} onClick={() => setTab("locs")}>Locais</button>
         <button className={tab === "orders" ? "on" : ""} onClick={() => setTab("orders")}>Encomendas</button>
       </div>
       {tab === "prod" && <Products />}
       {tab === "slot" && <Slots />}
+      {tab === "locs" && <Locations />}
       {tab === "orders" && <Orders />}
     </div>
   );
@@ -267,16 +269,24 @@ function Slots() {
   const [data, setData] = useState<{ locations: any[]; slots: any[]; products: any[] }>({ locations: [], slots: [], products: [] });
   const [loc, setLoc] = useState<string>("");
   const [date, setDate] = useState(""); const [times, setTimes] = useState(""); const [cap, setCap] = useState("3");
+  const [err, setErr] = useState("");
   const [productId, setProductId] = useState<string>(""); // "" = horário geral
   const load = () => fetch("/api/admin/slots").then((r) => r.json()).then((d) => { setData(d); if (!loc && d.locations[0]) setLoc(d.locations[0].id); });
   useEffect(() => { load(); }, []);
 
   async function add() {
-    if (!loc || !date || !times.trim()) return;
-    const list = times.split(/[\s,]+/).filter(Boolean).map((t) => new Date(`${date}T${t}:00`).toISOString());
-    if (!list.length) return;
-    await fetch("/api/admin/slots", { method: "POST", headers: { "Content-Type": "application/json" },
+    setErr("");
+    if (!loc) { setErr("Escolhe primeiro um local."); return; }
+    if (!date) { setErr("Escolhe o dia."); return; }
+    const tokens = times.split(/[\s,]+/).filter(Boolean);
+    if (!tokens.length) { setErr("Indica pelo menos uma hora (ex.: 16:30)."); return; }
+    const re = /^([01]?\d|2[0-3]):[0-5]\d$/; // 00:00 a 23:59
+    const invalid = tokens.filter((t) => !re.test(t));
+    if (invalid.length) { setErr(`Hora inválida: ${invalid.join(", ")}. Usa o formato HH:MM, ex.: 09:00 ou 16:30.`); return; }
+    const list = tokens.map((t) => { const [h, m] = t.split(":"); return new Date(`${date}T${h.padStart(2, "0")}:${m}:00`).toISOString(); });
+    const res = await fetch("/api/admin/slots", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ locationId: loc, startsAtList: list, capacity: parseInt(cap) || 1, productId: productId || null }) });
+    if (!res.ok) { setErr("Não foi possível guardar os horários. Tenta novamente."); return; }
     setTimes(""); load();
   }
   async function del(id: string) { await fetch("/api/admin/slots", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); load(); }
@@ -305,7 +315,7 @@ function Slots() {
 
       <div className="mini" style={{ marginTop: 18 }}>
         <div className="field"><label>Dia</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        <div className="field"><label>Horas (separadas por espaço)</label><input placeholder="10:30 16:30 18:00" value={times} onChange={(e) => setTimes(e.target.value)} /></div>
+        <div className="field"><label>Horas (separadas por espaço)</label><input placeholder="10:30 16:30 18:00" value={times} onChange={(e) => { setTimes(e.target.value); if (err) setErr(""); }} /></div>
         <div className="field"><label>Capacidade (cada horário)</label><input value={cap} onChange={(e) => setCap(e.target.value)} inputMode="numeric" /></div>
       </div>
       <div className="field" style={{ marginTop: 10, maxWidth: 360 }}>
@@ -315,6 +325,7 @@ function Slots() {
           {data.products.map((p) => <option key={p.id} value={p.id}>Só: {p.namePt}</option>)}
         </select>
       </div>
+      {err && <p className="note" style={{ color: "var(--accent)", marginTop: 12, marginBottom: 0 }}>{err}</p>}
       <button className="btn ghost" style={{ marginTop: 12 }} onClick={add}>+ Abrir horário(s)</button>
     </>
   );
@@ -335,6 +346,77 @@ function Orders() {
           </div>
         </div>
       ))}
+    </>
+  );
+}
+
+function Locations() {
+  const [list, setList] = useState<any[]>([]);
+  const [edits, setEdits] = useState<Record<string, { name: string; instructions: string }>>({});
+  const [nName, setNName] = useState(""); const [nInstr, setNInstr] = useState("");
+  const load = () => fetch("/api/admin/locations").then((r) => r.json()).then((d) => {
+    setList(d);
+    const m: Record<string, { name: string; instructions: string }> = {};
+    d.forEach((l: any) => { m[l.id] = { name: l.name, instructions: l.instructions || "" }; });
+    setEdits(m);
+  });
+  useEffect(() => { load(); }, []);
+
+  async function add() {
+    if (!nName.trim()) return;
+    await fetch("/api/admin/locations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nName, instructions: nInstr }) });
+    setNName(""); setNInstr(""); load();
+  }
+  async function save(id: string) {
+    const e = edits[id]; if (!e) return;
+    await fetch(`/api/admin/locations/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: e.name, instructions: e.instructions }) });
+    load();
+  }
+  async function toggle(l: any) {
+    await fetch(`/api/admin/locations/${l.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !l.active }) });
+    load();
+  }
+  async function move(i: number, dir: number) {
+    const j = i + dir; if (j < 0 || j >= list.length) return;
+    const a = list[i], b = list[j];
+    await Promise.all([
+      fetch(`/api/admin/locations/${a.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: j }) }),
+      fetch(`/api/admin/locations/${b.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }),
+    ]);
+    load();
+  }
+  const setE = (id: string, patch: Partial<{ name: string; instructions: string }>) => setEdits((p) => ({ ...p, [id]: { ...p[id], ...patch } }));
+
+  return (
+    <>
+      <p className="note" style={{ marginBottom: 16 }}>Pontos de levantamento. As instruções aparecem ao cliente quando escolhe o local e na confirmação por email. "Desativar" esconde o local do site mas mantém horários e histórico.</p>
+
+      {list.map((l, i) => (
+        <div key={l.id} style={{ border: "1px solid var(--line)", padding: 14, marginBottom: 10, background: "#fff", opacity: l.active ? 1 : .55 }}>
+          <div className="field"><label>Nome do local {!l.active && <span style={{ color: "var(--accent)" }}>· desativado</span>}</label>
+            <input value={edits[l.id]?.name ?? ""} onChange={(e) => setE(l.id, { name: e.target.value })} /></div>
+          <div className="field" style={{ marginBottom: 10 }}><label>Instruções de levantamento</label>
+            <textarea value={edits[l.id]?.instructions ?? ""} onChange={(e) => setE(l.id, { instructions: e.target.value })} rows={3}
+              style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff", fontFamily: "Inter", fontSize: ".9rem", color: "var(--ink)", resize: "vertical" }}
+              placeholder="ex.: Rua das Flores, 12, Maia. Toca à campainha 2B. Estacionamento à porta." /></div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn" style={{ padding: "10px 16px" }} onClick={() => save(l.id)}>Guardar</button>
+            <button className="btn ghost" style={{ padding: "10px 16px" }} onClick={() => toggle(l)}>{l.active ? "Desativar" : "Ativar"}</button>
+            <button className="a-del" title="Subir" onClick={() => move(i, -1)}>↑</button>
+            <button className="a-del" title="Descer" onClick={() => move(i, 1)}>↓</button>
+          </div>
+        </div>
+      ))}
+
+      <div style={{ borderTop: "1px solid var(--line)", marginTop: 20, paddingTop: 20 }}>
+        <div className="lbl-u" style={{ marginBottom: 10 }}>Novo ponto de levantamento</div>
+        <div className="field"><label>Nome do local</label><input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="ex.: Atelier · Maia" /></div>
+        <div className="field" style={{ marginBottom: 10 }}><label>Instruções de levantamento</label>
+          <textarea value={nInstr} onChange={(e) => setNInstr(e.target.value)} rows={3}
+            style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff", fontFamily: "Inter", fontSize: ".9rem", color: "var(--ink)", resize: "vertical" }}
+            placeholder="Morada, indicações, contacto, estacionamento…" /></div>
+        <button className="btn ghost" onClick={add}>+ Adicionar local</button>
+      </div>
     </>
   );
 }

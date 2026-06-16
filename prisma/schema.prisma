@@ -8,14 +8,15 @@ datasource db {
 }
 
 model Location {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  active    Boolean  @default(true)
-  sortOrder Int      @default(0)
-  slots     Slot[]
-  orders    Order[]
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  instructions String   @default("") // instruções de levantamento mostradas ao cliente
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  slots        Slot[]
+  orders       Order[]
+  createdAt    DateTime @default(now())
 }
 
 model Product {

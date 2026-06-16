@@ -90,6 +90,7 @@ footer .fnote a:hover{color:var(--accent)}
 .opt .delta{font-family:'Jost';font-size:.7rem;opacity:.7}.opt.on .delta{color:#C99AA4;opacity:1}
 .pickup{border-top:1px solid var(--line);margin-top:26px;padding-top:24px}
 .loc-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.pickup-instr{margin:-6px 0 18px;font-size:.86rem;color:var(--ink-soft);line-height:1.5;border-left:2px solid var(--accent);padding-left:12px;white-space:pre-wrap}
 .cal{border:1px solid var(--line);padding:16px}
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .cal-head .m{font-family:'Jost';letter-spacing:.18em;font-size:.8rem;text-transform:uppercase}

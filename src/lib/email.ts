@@ -2,7 +2,7 @@
 // Se RESEND_API_KEY estiver vazio, as funções não fazem nada (modo silencioso).
 type Order = {
   productName: string; sizeLabel?: string | null; decoLabel?: string | null;
-  total: number; pickupAt: Date; locationName: string;
+  total: number; pickupAt: Date; locationName: string; locationInstructions?: string;
   customerName: string; customerEmail: string;
 };
 
@@ -30,6 +30,7 @@ export async function sendOrderEmails(o: Order) {
       <p>Olá ${o.customerName}, a tua encomenda está confirmada.</p>
       <p><b>${o.productName}</b><br>${o.sizeLabel ?? ""} ${o.decoLabel ? "· " + o.decoLabel : ""}</p>
       <p>Levantamento: <b>${o.locationName}</b><br>${when(o.pickupAt)}</p>
+      ${o.locationInstructions ? `<p style="color:#6E6E6A;white-space:pre-wrap;border-left:2px solid #8C5E68;padding-left:10px">${o.locationInstructions}</p>` : ""}
       <p>Total pago: <b>${fmt(o.total)}</b></p>
     </div>`;
   await send(o.customerEmail, "Encomenda confirmada · Sara Maia Pastry", body);

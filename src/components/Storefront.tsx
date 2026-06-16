@@ -12,7 +12,7 @@ const lowStock = (p: { trackStock: boolean; stock: number | null }) => p.trackSt
 type Opt = { id: string; kind: string; labelPt: string; labelEn: string; choicePt: string; choiceEn: string; priceDelta: number };
 type Photo = { id: string; url: string };
 type Product = { id: string; namePt: string; nameEn: string; descPt: string; descEn: string; catPt: string; catEn: string; basePrice: number; leadDays: number; trackStock: boolean; stock: number | null; dedicatedSlotsOnly: boolean; photos: Photo[]; options: Opt[] };
-type Location = { id: string; name: string; slug: string };
+type Location = { id: string; name: string; slug: string; instructions: string };
 type Slot = { id: string; locationId: string; startsAt: string; productId: string | null };
 
 export default function Storefront() {
@@ -244,6 +244,7 @@ export default function Storefront() {
                   <div className="loc-row">{locations.map((L) => (
                     <button key={L.id} className={"opt" + (locId === L.id ? " on" : "")} onClick={() => { setLocId(L.id); setDayKey(null); setSlotId(null); }}>{L.name}</button>
                   ))}</div>
+                  {(() => { const L = locations.find((l) => l.id === locId); return L?.instructions ? <p className="pickup-instr">{L.instructions}</p> : null; })()}
 
                   <Calendar lang={lang} cal={cal} setCal={setCal} daySlots={daySlots} dayKey={dayKey} leadDays={cur.leadDays}
                     onPick={(k: string) => { setDayKey(k); setSlotId(null); }} />
