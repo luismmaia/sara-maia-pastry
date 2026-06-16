@@ -37,6 +37,8 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   if (!(await ok())) return NextResponse.json({ error: "auth" }, { status: 401 });
   const { id } = await req.json();
+  const cnt = await prisma.order.count({ where: { slotId: id } });
+  if (cnt > 0) return NextResponse.json({ error: `Este horário tem ${cnt} encomenda(s) associada(s). Apaga ou cancela essas encomendas primeiro (no separador Encomendas).` }, { status: 409 });
   await prisma.slot.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

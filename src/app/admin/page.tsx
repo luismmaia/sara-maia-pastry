@@ -320,7 +320,11 @@ function Slots() {
     if (!res.ok) { setErr("Não foi possível guardar os horários. Tenta novamente."); return; }
     setTimes(""); load();
   }
-  async function del(id: string) { await fetch("/api/admin/slots", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); load(); }
+  async function del(id: string) {
+    const res = await fetch("/api/admin/slots", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error || "Não foi possível apagar o horário."); return; }
+    load();
+  }
 
   const byDay: Record<string, any[]> = {};
   data.slots.filter((s) => s.locationId === loc).forEach((s) => { const d = new Date(s.startsAt); const k = d.toLocaleDateString("pt-PT", { weekday: "short", day: "2-digit", month: "short" }); (byDay[k] ||= []).push(s); });
@@ -417,6 +421,17 @@ function Orders() {
     } catch { alert("Erro de ligação."); }
     setBusy("");
   }
+  async function delOrder(id: string) {
+    if (!confirm("Apagar definitivamente esta encomenda?\nEsta ação não pode ser revertida. (Para devolver o dinheiro, usa antes Cancelar / reembolsar.)")) return;
+    setBusy(id + "delete");
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) alert(d.error || "Não foi possível apagar.");
+      load();
+    } catch { alert("Erro de ligação."); }
+    setBusy("");
+  }
 
   function exportCsv() {
     const head = ["Levantamento", "Produto", "Opções", "Total (€)", "Estado", "Cliente", "Telemóvel", "Email", "NIF", "Local", "Fatura Vendus"];
@@ -448,6 +463,7 @@ function Orders() {
           {(o.status === "paid" || o.status === "picked_up") && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("cancel")} onClick={() => act(o.id, "cancel", "Cancelar e reembolsar esta encomenda?")}>Cancelar / reembolsar</button>}
           <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("resend")} onClick={() => act(o.id, "resend")}>Reenviar email</button>
           {o.vendusInvoiceId && <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={b("invoice")} onClick={() => invoice(o.id)}>Ver fatura</button>}
+          <button className="btn ghost" style={{ padding: "7px 12px", borderColor: "var(--accent)", color: "var(--accent)" }} disabled={b("delete")} onClick={() => delOrder(o.id)}>Apagar</button>
         </div>
       </div>
     );
