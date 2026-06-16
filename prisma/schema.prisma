@@ -30,11 +30,13 @@ model Product {
   leadDays   Int             @default(2)  // antecedência mínima de produção (dias)
   trackStock Boolean         @default(false) // false = por encomenda (ilimitado); true = stock limitado
   stock      Int?            // unidades restantes quando trackStock = true
+  dedicatedSlotsOnly Boolean @default(false)  // true = só disponível nos horários dedicados a este produto
   active     Boolean         @default(true)
   sortOrder  Int             @default(0)
   photos     ProductPhoto[]
   options    ProductOption[]
   orders     Order[]
+  slots      Slot[]          // horários dedicados a este produto
   createdAt  DateTime        @default(now())
 }
 
@@ -65,6 +67,8 @@ model Slot {
   id         String   @id @default(cuid())
   location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   locationId String
+  product    Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String?  // null = horário geral; preenchido = dedicado só a este produto
   startsAt   DateTime
   capacity   Int      @default(1)
   booked     Int      @default(0)
@@ -73,6 +77,7 @@ model Slot {
   createdAt  DateTime @default(now())
 
   @@index([locationId, startsAt])
+  @@index([productId])
 }
 
 model User {

@@ -11,9 +11,9 @@ const lowStock = (p: { trackStock: boolean; stock: number | null }) => p.trackSt
 
 type Opt = { id: string; kind: string; labelPt: string; labelEn: string; choicePt: string; choiceEn: string; priceDelta: number };
 type Photo = { id: string; url: string };
-type Product = { id: string; namePt: string; nameEn: string; descPt: string; descEn: string; catPt: string; catEn: string; basePrice: number; leadDays: number; trackStock: boolean; stock: number | null; photos: Photo[]; options: Opt[] };
+type Product = { id: string; namePt: string; nameEn: string; descPt: string; descEn: string; catPt: string; catEn: string; basePrice: number; leadDays: number; trackStock: boolean; stock: number | null; dedicatedSlotsOnly: boolean; photos: Photo[]; options: Opt[] };
 type Location = { id: string; name: string; slug: string };
-type Slot = { id: string; locationId: string; startsAt: string };
+type Slot = { id: string; locationId: string; startsAt: string; productId: string | null };
 
 export default function Storefront() {
   const [lang, setLang] = useState<Lang>("pt");
@@ -91,12 +91,16 @@ export default function Storefront() {
   const key = (y: number, m: number, d: number) => `${y}-${m}-${d}`;
   const daySlots = useMemo(() => {
     const map: Record<string, Slot[]> = {};
-    slots.filter((s) => s.locationId === locId).forEach((s) => {
+    const usable = (s: Slot) =>
+      s.locationId === locId &&
+      (!s.productId || s.productId === cur?.id) &&
+      (!cur?.dedicatedSlotsOnly || s.productId === cur?.id);
+    slots.filter(usable).forEach((s) => {
       const d = new Date(s.startsAt); const k = key(d.getFullYear(), d.getMonth(), d.getDate());
       (map[k] ||= []).push(s);
     });
     return map;
-  }, [slots, locId]);
+  }, [slots, locId, cur]);
 
   function addToOrder() {
     if (!ready || !cur) { setToastMsg(t("t_need")); return; }

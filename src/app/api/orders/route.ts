@@ -45,6 +45,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Horário já não está disponível." }, { status: 409 });
   }
 
+  // Compatibilidade horário ↔ produto:
+  // - um horário dedicado a outro produto não pode ser usado
+  if (slot.productId && slot.productId !== product.id) {
+    return NextResponse.json({ error: "Este horário não está disponível para este bolo." }, { status: 409 });
+  }
+  // - um produto "só horários dedicados" não pode usar horários gerais
+  if (product.dedicatedSlotsOnly && slot.productId !== product.id) {
+    return NextResponse.json({ error: "Este bolo só pode ser levantado nos seus horários próprios." }, { status: 409 });
+  }
+
   // Tempo de produção: o levantamento tem de respeitar a antecedência mínima do produto
   const minPickup = new Date(); minPickup.setHours(0, 0, 0, 0);
   minPickup.setDate(minPickup.getDate() + product.leadDays);

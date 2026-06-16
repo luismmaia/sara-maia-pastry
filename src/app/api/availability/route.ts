@@ -15,7 +15,7 @@ export async function GET() {
   });
   // só horários com vaga
   const free = slots.filter((s) => s.booked < s.capacity).map((s) => ({
-    id: s.id, locationId: s.locationId, startsAt: s.startsAt,
+    id: s.id, locationId: s.locationId, startsAt: s.startsAt, productId: s.productId,
   }));
   return NextResponse.json({ locations, slots: free });
 }

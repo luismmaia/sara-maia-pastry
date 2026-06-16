@@ -13,7 +13,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   if (b.namePt !== undefined) { data.namePt = b.namePt; data.nameEn = b.nameEn ?? b.namePt; }
   if (b.descPt !== undefined) { data.descPt = b.descPt; data.descEn = b.descEn ?? b.descPt; }
   if (b.catPt !== undefined)  { data.catPt = b.catPt;  data.catEn = b.catEn ?? b.catPt; }
-  for (const k of ["leadDays", "active", "sortOrder", "trackStock"]) if (b[k] !== undefined) data[k] = b[k];
+  for (const k of ["leadDays", "active", "sortOrder", "trackStock", "dedicatedSlotsOnly"]) if (b[k] !== undefined) data[k] = b[k];
   if (b.basePrice !== undefined) data.basePrice = Math.round(b.basePrice * 100);
   if (b.trackStock !== undefined) data.stock = b.trackStock ? (b.stock ?? 0) : null;
 

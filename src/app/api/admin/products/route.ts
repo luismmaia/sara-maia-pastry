@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       leadDays: b.leadDays ?? 2,
       trackStock: !!b.trackStock,
       stock: b.trackStock ? (b.stock ?? 0) : null,
+      dedicatedSlotsOnly: !!b.dedicatedSlotsOnly,
       photos: { create: (b.photos || []).map((u: string, i: number) => ({ url: u, sortOrder: i })) },
       options: { create: (b.options || []).map((o: any, i: number) => ({
         kind: o.kind, labelPt: o.labelPt, labelEn: o.labelEn || o.labelPt,

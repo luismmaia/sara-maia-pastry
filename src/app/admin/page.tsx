@@ -59,11 +59,11 @@ type Group = { label: string; choices: Choice[] };
 type Editing = {
   id?: string; namePt: string; catPt: string; descPt: string;
   basePrice: string; leadDays: string; trackStock: boolean; stock: string;
-  groups: Group[]; photos: string[];
+  dedicatedSlotsOnly: boolean; groups: Group[]; photos: string[];
 };
 const emptyEditing = (): Editing => ({
   namePt: "", catPt: "", descPt: "", basePrice: "", leadDays: "2",
-  trackStock: false, stock: "", groups: [], photos: [],
+  trackStock: false, stock: "", dedicatedSlotsOnly: false, groups: [], photos: [],
 });
 function toEditing(p: any): Editing {
   // reconstruir grupos a partir das opções (agrupadas por kind)
@@ -77,6 +77,7 @@ function toEditing(p: any): Editing {
     id: p.id, namePt: p.namePt, catPt: p.catPt, descPt: p.descPt,
     basePrice: (p.basePrice / 100).toString(), leadDays: String(p.leadDays),
     trackStock: !!p.trackStock, stock: p.stock != null ? String(p.stock) : "",
+    dedicatedSlotsOnly: !!p.dedicatedSlotsOnly,
     groups, photos: (p.photos || []).map((ph: any) => ph.url),
   };
 }
@@ -111,7 +112,7 @@ function Products() {
           <div className="thumb">{p.photos?.[0] && <img src={p.photos[0].url} alt="" />}</div>
           <div className="meta">
             <b>{p.namePt} {!p.active && <span style={{ color: "var(--accent)" }}>· desativado</span>}</b>
-            <small>{eur(p.basePrice)} · {p.leadDays}d antecedência · {p.trackStock ? `stock: ${p.stock ?? 0}` : "por encomenda"} · {p.options?.length || 0} opções · {p.photos?.length || 0} fotos</small>
+            <small>{eur(p.basePrice)} · {p.leadDays}d antecedência · {p.trackStock ? `stock: ${p.stock ?? 0}` : "por encomenda"} · {p.options?.length || 0} opções · {p.photos?.length || 0} fotos{p.dedicatedSlotsOnly ? " · só horários próprios" : ""}</small>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button className="a-del" title="Subir" onClick={() => move(i, -1)}>↑</button>
@@ -166,6 +167,7 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
       namePt: e.namePt, catPt: e.catPt, descPt: e.descPt,
       basePrice: parseFloat(e.basePrice), leadDays: parseInt(e.leadDays) || 0,
       trackStock: e.trackStock, stock: e.trackStock ? (parseInt(e.stock) || 0) : null,
+      dedicatedSlotsOnly: e.dedicatedSlotsOnly,
       options, photos: e.photos,
     };
     setSaving(true);
@@ -195,6 +197,11 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
         </div>
         {e.trackStock && <div className="field"><label>Unidades em stock</label><input value={e.stock} onChange={(ev) => up({ stock: ev.target.value })} inputMode="numeric" /></div>}
       </div>
+
+      <label className="check" style={{ marginTop: 14 }}>
+        <input type="checkbox" checked={e.dedicatedSlotsOnly} onChange={(ev) => up({ dedicatedSlotsOnly: ev.target.checked })} />
+        <span>Só disponível nos horários dedicados a este bolo (não aparece nos horários gerais). Os horários dedicados criam-se no separador <b>Horários</b>.</span>
+      </label>
 
       {/* Personalizações */}
       <div style={{ marginTop: 26 }}>
@@ -257,38 +264,58 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
 }
 
 function Slots() {
-  const [data, setData] = useState<{ locations: any[]; slots: any[] }>({ locations: [], slots: [] });
+  const [data, setData] = useState<{ locations: any[]; slots: any[]; products: any[] }>({ locations: [], slots: [], products: [] });
   const [loc, setLoc] = useState<string>("");
-  const [date, setDate] = useState(""); const [time, setTime] = useState(""); const [cap, setCap] = useState("3");
+  const [date, setDate] = useState(""); const [times, setTimes] = useState(""); const [cap, setCap] = useState("3");
+  const [productId, setProductId] = useState<string>(""); // "" = horário geral
   const load = () => fetch("/api/admin/slots").then((r) => r.json()).then((d) => { setData(d); if (!loc && d.locations[0]) setLoc(d.locations[0].id); });
   useEffect(() => { load(); }, []);
+
   async function add() {
-    if (!loc || !date || !time) return;
-    const startsAt = new Date(`${date}T${time}:00`).toISOString();
-    await fetch("/api/admin/slots", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: loc, startsAt, capacity: parseInt(cap) || 1 }) });
-    setTime(""); load();
+    if (!loc || !date || !times.trim()) return;
+    const list = times.split(/[\s,]+/).filter(Boolean).map((t) => new Date(`${date}T${t}:00`).toISOString());
+    if (!list.length) return;
+    await fetch("/api/admin/slots", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locationId: loc, startsAtList: list, capacity: parseInt(cap) || 1, productId: productId || null }) });
+    setTimes(""); load();
   }
   async function del(id: string) { await fetch("/api/admin/slots", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); load(); }
+
   const byDay: Record<string, any[]> = {};
-  data.slots.filter((s) => s.locationId === loc).forEach((s) => { const d = new Date(s.startsAt); const k = d.toLocaleDateString("pt-PT"); (byDay[k] ||= []).push(s); });
+  data.slots.filter((s) => s.locationId === loc).forEach((s) => { const d = new Date(s.startsAt); const k = d.toLocaleDateString("pt-PT", { weekday: "short", day: "2-digit", month: "short" }); (byDay[k] ||= []).push(s); });
+
   return (
     <>
-      <p className="note" style={{ marginBottom: 16 }}>Abre horários por local. Dias com horários ficam a verde no calendário do cliente. A capacidade limita quantos bolos podem ser levantados nesse horário.</p>
+      <p className="note" style={{ marginBottom: 16 }}>Abre horários por local. Dias com horários ficam a verde no calendário do cliente. A capacidade limita quantos bolos podem ser levantados em cada horário. Podes criar um horário <b>geral</b> (qualquer bolo) ou <b>dedicado a um bolo</b> específico.</p>
       <div className="loc-row">{data.locations.map((L) => <button key={L.id} className={"opt" + (loc === L.id ? " on" : "")} onClick={() => setLoc(L.id)}>{L.name}</button>)}</div>
+
       {Object.keys(byDay).length === 0 && <p className="note">Sem horários abertos neste local.</p>}
       {Object.entries(byDay).map(([day, arr]) => (
         <div className="slotmgr-day" key={day}>
-          <b style={{ fontFamily: "Jost", minWidth: 120 }}>{day}</b>
+          <b style={{ fontFamily: "Jost", minWidth: 130 }}>{day}</b>
           {arr.map((s) => { const d = new Date(s.startsAt); const hh = d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
-            return <span className="chip" key={s.id}>{hh} · {s.booked}/{s.capacity}<button onClick={() => del(s.id)}>✕</button></span>; })}
+            return (
+              <span className="chip" key={s.id} style={s.product ? { background: "var(--accent-soft)", color: "var(--accent)" } : undefined}>
+                {hh} · {s.booked}/{s.capacity}{s.product ? ` · só ${s.product.namePt}` : ""}
+                <button onClick={() => del(s.id)}>✕</button>
+              </span>);
+          })}
         </div>
       ))}
-      <div className="mini" style={{ marginTop: 14 }}>
+
+      <div className="mini" style={{ marginTop: 18 }}>
         <div className="field"><label>Dia</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        <div className="field"><label>Hora</label><input placeholder="16:30" value={time} onChange={(e) => setTime(e.target.value)} /></div>
-        <div className="field"><label>Capacidade</label><input value={cap} onChange={(e) => setCap(e.target.value)} /></div>
+        <div className="field"><label>Horas (separadas por espaço)</label><input placeholder="10:30 16:30 18:00" value={times} onChange={(e) => setTimes(e.target.value)} /></div>
+        <div className="field"><label>Capacidade (cada horário)</label><input value={cap} onChange={(e) => setCap(e.target.value)} inputMode="numeric" /></div>
       </div>
-      <button className="btn ghost" onClick={add}>+ Abrir horário</button>
+      <div className="field" style={{ marginTop: 10, maxWidth: 360 }}>
+        <label>Disponível para</label>
+        <select value={productId} onChange={(e) => setProductId(e.target.value)} style={{ width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff", fontFamily: "Inter", fontSize: ".9rem", color: "var(--ink)" }}>
+          <option value="">Todos os bolos (horário geral)</option>
+          {data.products.map((p) => <option key={p.id} value={p.id}>Só: {p.namePt}</option>)}
+        </select>
+      </div>
+      <button className="btn ghost" style={{ marginTop: 12 }} onClick={add}>+ Abrir horário(s)</button>
     </>
   );
 }
