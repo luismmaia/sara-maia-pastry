@@ -55,9 +55,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Este bolo só pode ser levantado nos seus horários próprios." }, { status: 409 });
   }
 
-  // Tempo de produção: o levantamento tem de respeitar a antecedência mínima do produto
-  const minPickup = new Date(); minPickup.setHours(0, 0, 0, 0);
-  minPickup.setDate(minPickup.getDate() + product.leadDays);
+  // Tempo de produção: o levantamento tem de respeitar a antecedência mínima do produto (em horas)
+  const minPickup = new Date(Date.now() + product.leadHours * 3600 * 1000);
   if (slot.startsAt < minPickup) {
     return NextResponse.json({ error: "Este bolo precisa de mais tempo de produção. Escolhe uma data mais tarde." }, { status: 409 });
   }

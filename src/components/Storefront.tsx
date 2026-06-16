@@ -11,7 +11,7 @@ const lowStock = (p: { trackStock: boolean; stock: number | null }) => p.trackSt
 
 type Opt = { id: string; kind: string; labelPt: string; labelEn: string; choicePt: string; choiceEn: string; priceDelta: number };
 type Photo = { id: string; url: string };
-type Product = { id: string; namePt: string; nameEn: string; descPt: string; descEn: string; catPt: string; catEn: string; basePrice: number; leadDays: number; trackStock: boolean; stock: number | null; dedicatedSlotsOnly: boolean; photos: Photo[]; options: Opt[] };
+type Product = { id: string; namePt: string; nameEn: string; descPt: string; descEn: string; catPt: string; catEn: string; basePrice: number; leadHours: number; trackStock: boolean; stock: number | null; dedicatedSlotsOnly: boolean; photos: Photo[]; options: Opt[] };
 type Location = { id: string; name: string; slug: string; instructions: string };
 type Slot = { id: string; locationId: string; startsAt: string; productId: string | null };
 
@@ -93,8 +93,10 @@ export default function Storefront() {
   const key = (y: number, m: number, d: number) => `${y}-${m}-${d}`;
   const daySlots = useMemo(() => {
     const map: Record<string, Slot[]> = {};
+    const minMs = Date.now() + (cur?.leadHours ?? 0) * 3600 * 1000;
     const usable = (s: Slot) =>
       s.locationId === locId &&
+      new Date(s.startsAt).getTime() >= minMs &&
       (!s.productId || s.productId === cur?.id) &&
       (!cur?.dedicatedSlotsOnly || s.productId === cur?.id);
     slots.filter(usable).forEach((s) => {
@@ -121,6 +123,38 @@ export default function Storefront() {
   }
   let toastTimer: any;
   function setToastMsg(m: string) { setToast(m); clearTimeout(toastTimer); toastTimer = setTimeout(() => setToast(""), 2200); }
+
+  // "Última hora": produtos com algum horário disponível nas próximas 24h (respeitando antecedência e compatibilidade)
+  const lastMinute = useMemo(() => {
+    const now = Date.now(); const horizon = now + 24 * 3600 * 1000;
+    return products.filter((p) => {
+      if (soldOut(p)) return false;
+      const minMs = now + (p.leadHours || 0) * 3600 * 1000;
+      return slots.some((s) => {
+        const ms = new Date(s.startsAt).getTime();
+        if (ms < minMs || ms > horizon) return false;
+        return (!s.productId || s.productId === p.id) && (!p.dedicatedSlotsOnly || s.productId === p.id);
+      });
+    });
+  }, [products, slots]);
+
+  const card = (p: Product) => (
+    <div className="card" key={p.id} onClick={() => openProduct(p)} style={soldOut(p) ? { opacity: .6 } : undefined}>
+      <div className="ph">
+        {p.photos[0]
+          ? <img src={p.photos[0].url} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+          : <div className="fallback"><span>{tx(p.namePt, p.nameEn)}</span></div>}
+        {(() => {
+          const tagText = soldOut(p) ? t("sold_out") : (lowStock(p) ? t("left").replace("{n}", String(p.stock)) : tx(p.catPt, p.catEn));
+          return tagText ? <div className="tag" style={soldOut(p) ? { color: "var(--ink-soft)" } : undefined}>{tagText}</div> : null;
+        })()}
+      </div>
+      <div className="card-body">
+        <h3>{tx(p.namePt, p.nameEn)}</h3>
+        <div className="price">{eur(p.basePrice)}<small>{t("from")}</small></div>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -154,29 +188,23 @@ export default function Storefront() {
         </div>
       </header>
 
-      <section className="section" id="collection" style={{ paddingTop: 56 }}>
+      {lastMinute.length > 0 && (
+        <section className="section" id="last-minute" style={{ paddingTop: 56, paddingBottom: 24 }}>
+          <div className="sec-head">
+            <div><span className="eyebrow">{t("lm_title")}</span></div>
+            <span className="count">{t("lm_sub")}</span>
+          </div>
+          <div className="grid">{lastMinute.map(card)}</div>
+        </section>
+      )}
+
+      <section className="section" id="collection" style={{ paddingTop: lastMinute.length > 0 ? 10 : 56 }}>
         <div className="sec-head">
           <div><span className="eyebrow">{t("col_eyebrow")}</span></div>
           <span className="count">{products.length} {lang === "pt" ? "referências" : "references"}</span>
         </div>
         <div className="grid">
-          {products.map((p) => (
-            <div className="card" key={p.id} onClick={() => openProduct(p)} style={soldOut(p) ? { opacity: .6 } : undefined}>
-              <div className="ph">
-                {p.photos[0]
-                  ? <img src={p.photos[0].url} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
-                  : <div className="fallback"><span>{tx(p.namePt, p.nameEn)}</span></div>}
-                {(() => {
-                  const tagText = soldOut(p) ? t("sold_out") : (lowStock(p) ? t("left").replace("{n}", String(p.stock)) : tx(p.catPt, p.catEn));
-                  return tagText ? <div className="tag" style={soldOut(p) ? { color: "var(--ink-soft)" } : undefined}>{tagText}</div> : null;
-                })()}
-              </div>
-              <div className="card-body">
-                <h3>{tx(p.namePt, p.nameEn)}</h3>
-                <div className="price">{eur(p.basePrice)}<small>{t("from")}</small></div>
-              </div>
-            </div>
-          ))}
+          {products.map(card)}
         </div>
       </section>
 
@@ -230,7 +258,7 @@ export default function Storefront() {
                 <h2>{tx(cur.namePt, cur.nameEn)}</h2>
                 <p className="p-desc">{tx(cur.descPt, cur.descEn)}</p>
                 <div className="p-lead">
-                  ◷ {cur.leadDays <= 1 ? t("lead_one") : t("lead_more").replace("{n}", String(cur.leadDays))}
+                  ◷ {cur.leadHours > 0 ? t("lead_h").replace("{n}", String(cur.leadHours)) : t("lead_now")}
                   {soldOut(cur) && <span style={{ marginLeft: 12, color: "var(--ink-soft)" }}>· {t("sold_out")}</span>}
                   {lowStock(cur) && <span style={{ marginLeft: 12 }}>· {t("left").replace("{n}", String(cur.stock))}</span>}
                 </div>
@@ -253,7 +281,7 @@ export default function Storefront() {
                   ))}</div>
                   {(() => { const L = locations.find((l) => l.id === locId); return L?.instructions ? <p className="pickup-instr">{L.instructions}</p> : null; })()}
 
-                  <Calendar lang={lang} cal={cal} setCal={setCal} daySlots={daySlots} dayKey={dayKey} leadDays={cur.leadDays}
+                  <Calendar lang={lang} cal={cal} setCal={setCal} daySlots={daySlots} dayKey={dayKey}
                     onPick={(k: string) => { setDayKey(k); setSlotId(null); }} />
 
                   <div className="slots">
@@ -290,16 +318,16 @@ export default function Storefront() {
   );
 }
 
-function Calendar({ lang, cal, setCal, daySlots, dayKey, onPick, leadDays = 0 }: any) {
+function Calendar({ lang, cal, setCal, daySlots, dayKey, onPick }: any) {
   const { y, m } = cal;
   const first = new Date(y, m, 1); const lead = (first.getDay() + 6) % 7;
   const total = new Date(y, m + 1, 0).getDate();
-  const minDate = new Date(); minDate.setHours(0, 0, 0, 0); minDate.setDate(minDate.getDate() + leadDays);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const cells: any[] = [];
   for (let i = 0; i < lead; i++) cells.push(<div key={"e" + i} className="day empty" />);
   for (let d = 1; d <= total; d++) {
-    const k = `${y}-${m}-${d}`; const has = !!daySlots[k]; const tooSoon = new Date(y, m, d) < minDate;
-    const ok = has && !tooSoon;
+    const k = `${y}-${m}-${d}`; const has = !!daySlots[k]; const past = new Date(y, m, d) < todayStart;
+    const ok = has && !past;
     const cls = "day" + (ok ? " avail" : "") + (dayKey === k ? " sel" : "");
     cells.push(<div key={k} className={cls} onClick={() => ok && onPick(k)}>{d}</div>);
   }

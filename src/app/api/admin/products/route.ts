@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       descPt, descEn,
       catPt, catEn,
       basePrice: Math.round((b.basePrice || 0) * 100),
-      leadDays: b.leadDays ?? 2,
+      leadHours: b.leadHours ?? 24,
       trackStock: !!b.trackStock,
       stock: b.trackStock ? (b.stock ?? 0) : null,
       dedicatedSlotsOnly: !!b.dedicatedSlotsOnly,

@@ -28,7 +28,7 @@ model Product {
   catPt      String          @default("")
   catEn      String          @default("")
   basePrice  Int             // em cêntimos
-  leadDays   Int             @default(2)  // antecedência mínima de produção (dias)
+  leadHours  Int             @default(24) // antecedência mínima de produção (horas)
   trackStock Boolean         @default(false) // false = por encomenda (ilimitado); true = stock limitado
   stock      Int?            // unidades restantes quando trackStock = true
   dedicatedSlotsOnly Boolean @default(false)  // true = só disponível nos horários dedicados a este produto

@@ -61,12 +61,12 @@ type Group = { label: string; choices: Choice[] };
 type Editing = {
   id?: string; namePt: string; catPt: string; descPt: string;
   nameEn: string; catEn: string; descEn: string;
-  basePrice: string; leadDays: string; trackStock: boolean; stock: string;
+  basePrice: string; leadHours: string; trackStock: boolean; stock: string;
   dedicatedSlotsOnly: boolean; groups: Group[]; photos: string[];
 };
 const emptyEditing = (): Editing => ({
   namePt: "", catPt: "", descPt: "", nameEn: "", catEn: "", descEn: "",
-  basePrice: "", leadDays: "2",
+  basePrice: "", leadHours: "24",
   trackStock: false, stock: "", dedicatedSlotsOnly: false, groups: [], photos: [],
 });
 function toEditing(p: any): Editing {
@@ -80,7 +80,7 @@ function toEditing(p: any): Editing {
   return {
     id: p.id, namePt: p.namePt, catPt: p.catPt, descPt: p.descPt,
     nameEn: p.nameEn || "", catEn: p.catEn || "", descEn: p.descEn || "",
-    basePrice: (p.basePrice / 100).toString(), leadDays: String(p.leadDays),
+    basePrice: (p.basePrice / 100).toString(), leadHours: String(p.leadHours),
     trackStock: !!p.trackStock, stock: p.stock != null ? String(p.stock) : "",
     dedicatedSlotsOnly: !!p.dedicatedSlotsOnly,
     groups, photos: (p.photos || []).map((ph: any) => ph.url),
@@ -117,7 +117,7 @@ function Products() {
           <div className="thumb">{p.photos?.[0] && <img src={p.photos[0].url} alt="" />}</div>
           <div className="meta">
             <b>{p.namePt} {!p.active && <span style={{ color: "var(--accent)" }}>· desativado</span>}</b>
-            <small>{eur(p.basePrice)} · {p.leadDays}d antecedência · {p.trackStock ? `stock: ${p.stock ?? 0}` : "por encomenda"} · {p.options?.length || 0} opções · {p.photos?.length || 0} fotos{p.dedicatedSlotsOnly ? " · só horários próprios" : ""}</small>
+            <small>{eur(p.basePrice)} · {p.leadHours}h antecedência · {p.trackStock ? `stock: ${p.stock ?? 0}` : "por encomenda"} · {p.options?.length || 0} opções · {p.photos?.length || 0} fotos{p.dedicatedSlotsOnly ? " · só horários próprios" : ""}</small>
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button className="a-del" title="Subir" onClick={() => move(i, -1)}>↑</button>
@@ -184,7 +184,7 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
     const payload = {
       namePt: e.namePt, catPt: e.catPt, descPt: e.descPt,
       nameEn: e.nameEn, catEn: e.catEn, descEn: e.descEn,
-      basePrice: parseFloat(e.basePrice), leadDays: parseInt(e.leadDays) || 0,
+      basePrice: parseFloat(e.basePrice), leadHours: parseInt(e.leadHours) || 0,
       trackStock: e.trackStock, stock: e.trackStock ? (parseInt(e.stock) || 0) : null,
       dedicatedSlotsOnly: e.dedicatedSlotsOnly,
       options, photos: e.photos,
@@ -206,7 +206,7 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
         <div className="field" style={{ gridColumn: "span 2" }}><label>Nome</label><input value={e.namePt} onChange={(ev) => up({ namePt: ev.target.value })} /></div>
         <div className="field"><label>Preço base (€)</label><input value={e.basePrice} onChange={(ev) => up({ basePrice: ev.target.value })} inputMode="decimal" /></div>
         <div className="field"><label>Categoria</label><input value={e.catPt} onChange={(ev) => up({ catPt: ev.target.value })} placeholder="ex.: chocolate" /></div>
-        <div className="field"><label>Antecedência (dias)</label><input value={e.leadDays} onChange={(ev) => up({ leadDays: ev.target.value })} inputMode="numeric" /></div>
+        <div className="field"><label>Antecedência (horas)</label><input value={e.leadHours} onChange={(ev) => up({ leadHours: ev.target.value })} inputMode="numeric" /></div>
         <div className="field" style={{ gridColumn: "span 3" }}><label>Descrição</label><input value={e.descPt} onChange={(ev) => up({ descPt: ev.target.value })} /></div>
         <div className="field"><label>Stock limitado?</label>
           <div style={{ display: "flex", alignItems: "center", gap: 8, height: 42 }}>
