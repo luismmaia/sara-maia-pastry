@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { verifyAdminToken } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { translatePtToEn } from "@/lib/translate";
 async function ok() { return verifyAdminToken(cookies().get("sm_admin")?.value); }
 
 export async function GET() {
@@ -16,11 +17,15 @@ export async function GET() {
 export async function POST(req: Request) {
   if (!(await ok())) return NextResponse.json({ error: "auth" }, { status: 401 });
   const b = await req.json();
+  const namePt = b.namePt, descPt = b.descPt || "", catPt = b.catPt || "";
+  const nameEn = b.nameEn?.trim() ? b.nameEn : await translatePtToEn(namePt);
+  const descEn = b.descEn?.trim() ? b.descEn : await translatePtToEn(descPt);
+  const catEn = b.catEn?.trim() ? b.catEn : await translatePtToEn(catPt);
   const product = await prisma.product.create({
     data: {
-      namePt: b.namePt, nameEn: b.nameEn || b.namePt,
-      descPt: b.descPt || "", descEn: b.descEn || b.descPt || "",
-      catPt: b.catPt || "", catEn: b.catEn || b.catPt || "",
+      namePt, nameEn,
+      descPt, descEn,
+      catPt, catEn,
       basePrice: Math.round((b.basePrice || 0) * 100),
       leadDays: b.leadDays ?? 2,
       trackStock: !!b.trackStock,

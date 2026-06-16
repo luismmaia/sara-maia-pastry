@@ -21,6 +21,8 @@ export default function Storefront() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const t = (k: string) => T[lang][k] ?? k;
+  // Texto de produto: em EN, se o campo estiver vazio, mostra o PT (a loja gere textos em PT).
+  const tx = (pt: string, en: string) => (lang === "pt" ? pt : (en && en.trim() ? en : pt));
 
   useEffect(() => {
     fetch("/api/products", { cache: "no-store" }).then((r) => r.json()).then(setProducts).catch(() => {});
@@ -46,7 +48,7 @@ export default function Storefront() {
     const out: { kind: string; label: string; choices: Opt[] }[] = [];
     (cur?.options ?? []).forEach((o) => {
       let g = out.find((x) => x.kind === o.kind);
-      if (!g) { g = { kind: o.kind, label: lang === "pt" ? o.labelPt : o.labelEn, choices: [] }; out.push(g); }
+      if (!g) { g = { kind: o.kind, label: tx(o.labelPt, o.labelEn), choices: [] }; out.push(g); }
       g.choices.push(o);
     });
     return out;
@@ -108,11 +110,11 @@ export default function Storefront() {
     const optionIds = groups.map((g) => sel[g.kind]);
     const optsText = groups.map((g) => {
       const c = g.choices.find((o) => o.id === sel[g.kind])!;
-      return `${g.label}: ${lang === "pt" ? c.choicePt : c.choiceEn}`;
+      return `${g.label}: ${tx(c.choicePt, c.choiceEn)}`;
     });
     setOrder({
       productId: cur.id, optionIds, slotId,
-      name: lang === "pt" ? cur.namePt : cur.nameEn,
+      name: tx(cur.namePt, cur.nameEn),
       optsText, locName: loc.name, pickup: new Date(s.startsAt), total: price,
     });
     setCur(null); setCoOpen(true);
@@ -141,8 +143,12 @@ export default function Storefront() {
               <span style={{ opacity: .3 }}>/</span>
               <button className={lang === "en" ? "on" : ""} onClick={() => setLang("en")}>EN</button>
             </div>
-            <button className="cart-btn" onClick={() => setCoOpen(true)}>
-              {t("nav_order")} <span className="cart-count">{order ? 1 : 0}</span>
+            <button className="cart-btn" aria-label={t("nav_order")} title={t("nav_order")} onClick={() => setCoOpen(true)}>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 7h12l-1 13H7L6 7z" />
+                <path d="M9 7V5.5a3 3 0 0 1 6 0V7" />
+              </svg>
+              <span className="cart-count">{order ? 1 : 0}</span>
             </button>
           </nav>
         </div>
@@ -159,13 +165,14 @@ export default function Storefront() {
               <div className="ph">
                 {p.photos[0]
                   ? <img src={p.photos[0].url} alt="" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
-                  : <div className="fallback"><span>{lang === "pt" ? p.namePt : p.nameEn}</span></div>}
-                <div className="tag" style={soldOut(p) ? { color: "var(--ink-soft)" } : undefined}>
-                  {soldOut(p) ? t("sold_out") : (lowStock(p) ? t("left").replace("{n}", String(p.stock)) : (lang === "pt" ? p.catPt : p.catEn))}
-                </div>
+                  : <div className="fallback"><span>{tx(p.namePt, p.nameEn)}</span></div>}
+                {(() => {
+                  const tagText = soldOut(p) ? t("sold_out") : (lowStock(p) ? t("left").replace("{n}", String(p.stock)) : tx(p.catPt, p.catEn));
+                  return tagText ? <div className="tag" style={soldOut(p) ? { color: "var(--ink-soft)" } : undefined}>{tagText}</div> : null;
+                })()}
               </div>
               <div className="card-body">
-                <h3>{lang === "pt" ? p.namePt : p.nameEn}</h3>
+                <h3>{tx(p.namePt, p.nameEn)}</h3>
                 <div className="price">{eur(p.basePrice)}<small>{t("from")}</small></div>
               </div>
             </div>
@@ -219,9 +226,9 @@ export default function Storefront() {
                 </div>
               </div>
               <div className="p-info">
-                <span className="eyebrow">{lang === "pt" ? cur.catPt : cur.catEn}</span>
-                <h2>{lang === "pt" ? cur.namePt : cur.nameEn}</h2>
-                <p className="p-desc">{lang === "pt" ? cur.descPt : cur.descEn}</p>
+                {tx(cur.catPt, cur.catEn) ? <span className="eyebrow">{tx(cur.catPt, cur.catEn)}</span> : null}
+                <h2>{tx(cur.namePt, cur.nameEn)}</h2>
+                <p className="p-desc">{tx(cur.descPt, cur.descEn)}</p>
                 <div className="p-lead">
                   ◷ {cur.leadDays <= 1 ? t("lead_one") : t("lead_more").replace("{n}", String(cur.leadDays))}
                   {soldOut(cur) && <span style={{ marginLeft: 12, color: "var(--ink-soft)" }}>· {t("sold_out")}</span>}
@@ -233,7 +240,7 @@ export default function Storefront() {
                     <div className="lbl">{g.label}</div>
                     <div className="opts">{g.choices.map((o) => (
                       <button key={o.id} className={"opt" + (sel[g.kind] === o.id ? " on" : "")} onClick={() => setSel((prev) => ({ ...prev, [g.kind]: o.id }))}>
-                        <span>{lang === "pt" ? o.choicePt : o.choiceEn}</span>{o.priceDelta > 0 && <span className="delta">+{eur(o.priceDelta)}</span>}
+                        <span>{tx(o.choicePt, o.choiceEn)}</span>{o.priceDelta > 0 && <span className="delta">+{eur(o.priceDelta)}</span>}
                       </button>))}
                     </div>
                   </div>

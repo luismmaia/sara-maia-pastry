@@ -60,11 +60,13 @@ type Choice = { choice: string; delta: string };
 type Group = { label: string; choices: Choice[] };
 type Editing = {
   id?: string; namePt: string; catPt: string; descPt: string;
+  nameEn: string; catEn: string; descEn: string;
   basePrice: string; leadDays: string; trackStock: boolean; stock: string;
   dedicatedSlotsOnly: boolean; groups: Group[]; photos: string[];
 };
 const emptyEditing = (): Editing => ({
-  namePt: "", catPt: "", descPt: "", basePrice: "", leadDays: "2",
+  namePt: "", catPt: "", descPt: "", nameEn: "", catEn: "", descEn: "",
+  basePrice: "", leadDays: "2",
   trackStock: false, stock: "", dedicatedSlotsOnly: false, groups: [], photos: [],
 });
 function toEditing(p: any): Editing {
@@ -77,6 +79,7 @@ function toEditing(p: any): Editing {
   });
   return {
     id: p.id, namePt: p.namePt, catPt: p.catPt, descPt: p.descPt,
+    nameEn: p.nameEn || "", catEn: p.catEn || "", descEn: p.descEn || "",
     basePrice: (p.basePrice / 100).toString(), leadDays: String(p.leadDays),
     trackStock: !!p.trackStock, stock: p.stock != null ? String(p.stock) : "",
     dedicatedSlotsOnly: !!p.dedicatedSlotsOnly,
@@ -134,6 +137,19 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [urlInput, setUrlInput] = useState("");
+  const [translating, setTranslating] = useState(false);
+
+  async function translateFromPt() {
+    if (!e.namePt && !e.descPt && !e.catPt) { alert("Preenche primeiro os campos em português."); return; }
+    setTranslating(true);
+    try {
+      const res = await fetch("/api/admin/translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ namePt: e.namePt, descPt: e.descPt, catPt: e.catPt }) });
+      const d = await res.json();
+      if (res.ok) up({ nameEn: d.nameEn || "", catEn: d.catEn || "", descEn: d.descEn || "" });
+      else alert("Não foi possível traduzir agora.");
+    } catch { alert("Erro de ligação à tradução."); }
+    setTranslating(false);
+  }
 
   // grupos / opções
   function addGroup() { if (e.groups.length < 2) up({ groups: [...e.groups, { label: "", choices: [{ choice: "", delta: "0" }] }] }); }
@@ -167,6 +183,7 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
       })));
     const payload = {
       namePt: e.namePt, catPt: e.catPt, descPt: e.descPt,
+      nameEn: e.nameEn, catEn: e.catEn, descEn: e.descEn,
       basePrice: parseFloat(e.basePrice), leadDays: parseInt(e.leadDays) || 0,
       trackStock: e.trackStock, stock: e.trackStock ? (parseInt(e.stock) || 0) : null,
       dedicatedSlotsOnly: e.dedicatedSlotsOnly,
@@ -204,6 +221,20 @@ function ProductEditor({ editing, setEditing, onSaved }: { editing: Editing; set
         <input type="checkbox" checked={e.dedicatedSlotsOnly} onChange={(ev) => up({ dedicatedSlotsOnly: ev.target.checked })} />
         <span>Só disponível nos horários dedicados a este bolo (não aparece nos horários gerais). Os horários dedicados criam-se no separador <b>Horários</b>.</span>
       </label>
+
+      {/* Inglês (editável; preenche-se sozinho ao guardar se ficar vazio) */}
+      <div style={{ marginTop: 26 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+          <div className="lbl-u" style={{ marginBottom: 0 }}>Inglês</div>
+          <button className="btn ghost" style={{ padding: "7px 12px" }} disabled={translating} onClick={translateFromPt}>{translating ? "A traduzir…" : "Traduzir do português"}</button>
+        </div>
+        <p className="note" style={{ marginTop: 0 }}>Podes traduzir automaticamente e depois corrigir à mão. Se deixares vazio, o inglês é preenchido por tradução ao guardar.</p>
+        <div className="mini">
+          <div className="field" style={{ gridColumn: "span 2" }}><label>Nome (EN)</label><input value={e.nameEn} onChange={(ev) => up({ nameEn: ev.target.value })} /></div>
+          <div className="field"><label>Categoria (EN)</label><input value={e.catEn} onChange={(ev) => up({ catEn: ev.target.value })} /></div>
+          <div className="field" style={{ gridColumn: "span 3" }}><label>Descrição (EN)</label><input value={e.descEn} onChange={(ev) => up({ descEn: ev.target.value })} /></div>
+        </div>
+      </div>
 
       {/* Personalizações */}
       <div style={{ marginTop: 26 }}>

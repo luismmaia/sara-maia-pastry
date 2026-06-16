@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { verifyAdminToken } from "@/lib/auth";
 import { cookies } from "next/headers";
+import { translatePtToEn } from "@/lib/translate";
 async function ok() { return verifyAdminToken(cookies().get("sm_admin")?.value); }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
@@ -10,9 +11,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   // Espelhar PT -> EN (a loja é bilingue, mas os textos são geridos só em PT)
   const data: any = {};
-  if (b.namePt !== undefined) { data.namePt = b.namePt; data.nameEn = b.nameEn ?? b.namePt; }
-  if (b.descPt !== undefined) { data.descPt = b.descPt; data.descEn = b.descEn ?? b.descPt; }
-  if (b.catPt !== undefined)  { data.catPt = b.catPt;  data.catEn = b.catEn ?? b.catPt; }
+  if (b.namePt !== undefined) { data.namePt = b.namePt; data.nameEn = b.nameEn?.trim() ? b.nameEn : await translatePtToEn(b.namePt); }
+  if (b.descPt !== undefined) { data.descPt = b.descPt; data.descEn = b.descEn?.trim() ? b.descEn : await translatePtToEn(b.descPt); }
+  if (b.catPt !== undefined)  { data.catPt = b.catPt;  data.catEn = b.catEn?.trim() ? b.catEn : await translatePtToEn(b.catPt); }
   for (const k of ["leadDays", "active", "sortOrder", "trackStock", "dedicatedSlotsOnly"]) if (b[k] !== undefined) data[k] = b[k];
   if (b.basePrice !== undefined) data.basePrice = Math.round(b.basePrice * 100);
   if (b.trackStock !== undefined) data.stock = b.trackStock ? (b.stock ?? 0) : null;
