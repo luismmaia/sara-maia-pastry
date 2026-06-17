@@ -48,9 +48,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   return NextResponse.json(product);
 }
 
-// "Remover" = desativar (mantém o histórico de encomendas). Para reativar, usa PUT { active: true }.
+// Apagar definitivamente — só permitido se o produto não tiver encomendas associadas.
+// (Apaga em cascata fotos, opções e horários dedicados.) Para esconder mantendo histórico, usa desativar.
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   if (!(await ok())) return NextResponse.json({ error: "auth" }, { status: 401 });
-  await prisma.product.update({ where: { id: params.id }, data: { active: false } });
+  const cnt = await prisma.order.count({ where: { productId: params.id } });
+  if (cnt > 0) return NextResponse.json({ error: `Este produto tem ${cnt} encomenda(s) associada(s). Não pode ser apagado — podes desativá-lo.` }, { status: 409 });
+  await prisma.product.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }

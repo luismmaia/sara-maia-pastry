@@ -217,7 +217,7 @@ export default function Storefront() {
         <section className="section" id="last-minute" style={{ paddingTop: 56, paddingBottom: 24 }}>
           <div className="sec-head">
             <div><span className="eyebrow">{t("lm_title")}</span></div>
-            <span className="count">{t("lm_sub")}</span>
+            <span className="count">{t("lm_sub").replace("{n}", String(lastMinuteHours))}</span>
           </div>
           <div className="grid">{lastMinute.map(card)}</div>
         </section>

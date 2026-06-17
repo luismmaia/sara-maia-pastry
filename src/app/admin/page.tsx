@@ -6,7 +6,7 @@ const eur = (c: number) => "€" + (c / 100).toFixed(2);
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
   const [pass, setPass] = useState("");
-  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders" | "settings">("prod");
+  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders" | "users" | "settings">("prod");
 
   async function login() {
     const r = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass }) });
@@ -33,12 +33,14 @@ export default function Admin() {
         <button className={tab === "slot" ? "on" : ""} onClick={() => setTab("slot")}>Horários</button>
         <button className={tab === "locs" ? "on" : ""} onClick={() => setTab("locs")}>Locais</button>
         <button className={tab === "orders" ? "on" : ""} onClick={() => setTab("orders")}>Encomendas</button>
+        <button className={tab === "users" ? "on" : ""} onClick={() => setTab("users")}>Clientes</button>
         <button className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Definições</button>
       </div>
       {tab === "prod" && <Products />}
       {tab === "slot" && <Slots />}
       {tab === "locs" && <Locations />}
       {tab === "orders" && <Orders />}
+      {tab === "users" && <Users />}
       {tab === "settings" && <Settings />}
     </div>
   );
@@ -99,6 +101,12 @@ function Products() {
     await fetch(`/api/admin/products/${p.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !p.active }) });
     load();
   }
+  async function remove(p: any) {
+    if (!confirm(`Apagar definitivamente "${p.namePt}"?\nEsta ação não pode ser revertida. (Só é possível se o produto não tiver encomendas.)`)) return;
+    const res = await fetch(`/api/admin/products/${p.id}`, { method: "DELETE" });
+    if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error || "Não foi possível apagar."); return; }
+    load();
+  }
   async function move(i: number, dir: number) {
     const j = i + dir; if (j < 0 || j >= list.length) return;
     const a = list[i], b = list[j];
@@ -126,6 +134,7 @@ function Products() {
             <button className="a-del" title="Descer" onClick={() => move(i, 1)}>↓</button>
             <button className="btn ghost" style={{ padding: "8px 12px" }} onClick={() => setEditing(toEditing(p))}>Editar</button>
             <button className="btn ghost" style={{ padding: "8px 12px" }} onClick={() => toggleActive(p)}>{p.active ? "Desativar" : "Ativar"}</button>
+            <button className="btn ghost" style={{ padding: "8px 12px", borderColor: "var(--accent)", color: "var(--accent)" }} onClick={() => remove(p)}>Apagar</button>
           </div>
         </div>
       ))}
@@ -657,6 +666,65 @@ function Settings() {
       </div>
       <button className="btn" onClick={save}>Guardar</button>
       {saved && <span style={{ marginLeft: 12, color: "var(--ok)", fontSize: ".85rem" }}>Guardado.</span>}
+    </>
+  );
+}
+
+function Users() {
+  const [list, setList] = useState<any[]>([]);
+  const [open, setOpen] = useState<string>("");
+  const [detail, setDetail] = useState<Record<string, any[]>>({});
+  const load = () => fetch("/api/admin/users").then((r) => r.json()).then((d) => setList(Array.isArray(d) ? d : []));
+  useEffect(() => { load(); }, []);
+
+  async function toggle(id: string) {
+    if (open === id) { setOpen(""); return; }
+    setOpen(id);
+    if (!detail[id]) {
+      const d = await fetch(`/api/admin/users/${id}`).then((r) => r.json()).catch(() => ({ orders: [] }));
+      setDetail((p) => ({ ...p, [id]: d.orders || [] }));
+    }
+  }
+  async function del(u: any) {
+    if (!confirm(`Apagar a conta de ${u.email}?\nAs encomendas mantêm-se (ficam como convidado). Esta ação não pode ser revertida.`)) return;
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: "DELETE" });
+    if (!res.ok) { alert("Não foi possível apagar."); return; }
+    setOpen(""); load();
+  }
+
+  return (
+    <>
+      <p className="note" style={{ marginBottom: 16 }}>Clientes com conta criada. Abre cada um para ver as encomendas associadas (por conta ou pelo email).</p>
+      {list.length === 0 && <p className="note">Ainda não há clientes registados.</p>}
+      {list.map((u) => (
+        <div key={u.id} style={{ border: "1px solid var(--line)", marginBottom: 10, background: "#fff" }}>
+          <div className="a-row" style={{ border: "none" }}>
+            <div className="meta">
+              <b>{u.name || "—"} · {u.email}</b>
+              <small>{u.phone || "sem telemóvel"}{u.nif ? " · NIF " + u.nif : ""} · {u._count?.orders ?? 0} encomenda(s) · desde {new Date(u.createdAt).toLocaleDateString("pt-PT")}</small>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button className="btn ghost" style={{ padding: "8px 12px" }} onClick={() => toggle(u.id)}>{open === u.id ? "Fechar" : "Ver encomendas"}</button>
+              <button className="btn ghost" style={{ padding: "8px 12px", borderColor: "var(--accent)", color: "var(--accent)" }} onClick={() => del(u)}>Apagar</button>
+            </div>
+          </div>
+          {open === u.id && (
+            <div style={{ borderTop: "1px solid var(--line)", padding: "12px 16px", background: "var(--bg-2)" }}>
+              {!detail[u.id] ? <p className="note" style={{ margin: 0 }}>A carregar…</p>
+                : detail[u.id].length === 0 ? <p className="note" style={{ margin: 0 }}>Sem encomendas.</p>
+                  : detail[u.id].map((o) => {
+                    const st = ORDER_ST[o.status] || { label: o.status, color: "var(--ink-soft)" };
+                    return (
+                      <div key={o.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+                        <span>{o.productName} — {eur(o.total)} <span style={{ color: st.color }}>· {st.label}</span></span>
+                        <span style={{ color: "var(--ink-soft)", fontSize: ".82rem" }}>{dtLabel(o.pickupAt)} · {o.location?.name}</span>
+                      </div>
+                    );
+                  })}
+            </div>
+          )}
+        </div>
+      ))}
     </>
   );
 }
