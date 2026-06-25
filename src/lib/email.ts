@@ -3,6 +3,7 @@
 import { getEmailSettings } from "@/lib/settings";
 
 type Order = {
+  orderId: string; isRegistered: boolean;
   productName: string; sizeLabel?: string | null; decoLabel?: string | null;
   total: number; pickupAt: Date; locationName: string; locationInstructions?: string;
   customerName: string; customerEmail: string;
@@ -28,15 +29,14 @@ export async function send(to: string | string[], subject: string, html: string,
 
 const fmt = (c: number) => (c / 100).toFixed(2) + " €";
 const when = (d: Date) => d.toLocaleString("pt-PT", { dateStyle: "long", timeStyle: "short" });
+const btn = (href: string, label: string) =>
+  `<p style="margin-top:20px"><a href="${href}" style="display:inline-block;background:#3A3A38;color:#fff;text-decoration:none;padding:12px 20px;font-family:Arial,sans-serif;font-size:13px;letter-spacing:.06em">${label}</a></p>`;
 
 export async function sendOrderEmails(o: Order) {
   const cfg = await getEmailSettings();
+  const site = (process.env.NEXT_PUBLIC_SITE_URL || "").replace(/\/$/, "");
 
-  const sig = cfg.signature
-    ? `<p style="color:#6E6E6A;white-space:pre-wrap;margin-top:22px;border-top:1px solid #E7E3DD;padding-top:14px">${cfg.signature}</p>`
-    : "";
-
-  const body = `
+  const detail = `
     <div style="font-family:Arial,sans-serif;color:#3A3A38">
       <h2 style="font-weight:300;letter-spacing:.1em">Sara Maia · Pastry</h2>
       <p>Olá ${o.customerName}, a tua encomenda está confirmada.</p>
@@ -44,16 +44,22 @@ export async function sendOrderEmails(o: Order) {
       <p>Levantamento: <b>${o.locationName}</b><br>${when(o.pickupAt)}</p>
       ${o.locationInstructions ? `<p style="color:#6E6E6A;white-space:pre-wrap;border-left:2px solid #8C5E68;padding-left:10px">${o.locationInstructions}</p>` : ""}
       <p>Total: <b>${fmt(o.total)}</b></p>
-      ${sig}
     </div>`;
 
-  // Confirmação ao cliente
+  const sig = cfg.signature
+    ? `<p style="font-family:Arial,sans-serif;color:#6E6E6A;white-space:pre-wrap;margin-top:22px;border-top:1px solid #E7E3DD;padding-top:14px">${cfg.signature}</p>`
+    : "";
+
+  // ----- Email ao cliente (link só se tiver conta) -----
   if (cfg.customerEnabled && o.customerEmail) {
-    await send(o.customerEmail, "Encomenda confirmada · Sara Maia Pastry", body, cfg.replyTo || undefined);
+    const link = (site && o.isRegistered) ? btn(`${site}/conta`, "Ver a minha encomenda") : "";
+    await send(o.customerEmail, "Encomenda confirmada · Sara Maia Pastry", detail + link + sig, cfg.replyTo || undefined);
   }
-  // Aviso de nova encomenda à lista de destinatários
+
+  // ----- Email ao gestor (link para o backoffice, sempre) -----
   if (cfg.ownerEnabled && cfg.notifyEmails.length) {
-    await send(cfg.notifyEmails, `Nova encomenda: ${o.productName}`,
-      `<p><b>${o.customerName}</b> (${o.customerEmail})</p>${body}`, o.customerEmail);
+    const link = site ? btn(`${site}/admin?tab=orders&find=${encodeURIComponent(o.customerEmail)}`, "Abrir no backoffice") : "";
+    const header = `<p style="font-family:Arial,sans-serif"><b>${o.customerName}</b> (${o.customerEmail})${o.isRegistered ? " · cliente com conta" : " · convidado"}</p>`;
+    await send(cfg.notifyEmails, `Nova encomenda: ${o.productName}`, header + detail + link, o.customerEmail);
   }
 }

@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         if (invoice?.id) await prisma.order.update({ where: { id: order.id }, data: { vendusInvoiceId: invoice.id, vendusInvoiceUrl: invoice.url } });
         // Emails (se configurado)
         await sendOrderEmails({
+          orderId: order.id, isRegistered: !!order.userId,
           productName: order.productName, sizeLabel: order.sizeLabel, decoLabel: order.decoLabel,
           total: order.total, pickupAt: order.pickupAt, locationName: order.location.name,
           locationInstructions: order.location.instructions,

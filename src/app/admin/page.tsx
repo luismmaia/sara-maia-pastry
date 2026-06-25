@@ -14,6 +14,11 @@ export default function Admin() {
   }
   // tenta carregar; se 401, mostra login
   useEffect(() => { fetch("/api/admin/orders").then((r) => setAuthed(r.ok)); }, []);
+  // se vier um ?tab=... do link do email, abre logo esse separador
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("tab");
+    if (p && ["prod", "slot", "locs", "orders", "users", "emails", "settings"].includes(p)) setTab(p as any);
+  }, []);
 
   if (!authed) {
     return (
@@ -400,6 +405,7 @@ function Orders() {
   const [man, setMan] = useState({ description: "", price: "", slotId: "", customerName: "", customerPhone: "", customerEmail: "", nif: "", status: "paid" });
   const load = () => fetch("/api/admin/orders").then((r) => r.json()).then((d) => setOrders(Array.isArray(d) ? d : []));
   useEffect(() => { load(); fetch("/api/admin/slots").then((r) => r.json()).then((d) => { setSlots(d.slots || []); setSlotLocs(d.locations || []); }).catch(() => {}); }, []);
+  useEffect(() => { const find = new URLSearchParams(window.location.search).get("find"); if (find) setQ(find); }, []);
   const slotLabel = (s: any) => {
     const loc = slotLocs.find((l) => l.id === s.locationId)?.name || "";
     return `${loc} — ${new Date(s.startsAt).toLocaleString("pt-PT", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} (${s.booked}/${s.capacity})`;
