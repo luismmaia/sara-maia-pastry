@@ -397,6 +397,7 @@ function Orders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [view, setView] = useState<"agenda" | "list">("agenda");
   const [fLoc, setFLoc] = useState(""); const [fStatus, setFStatus] = useState("");
+  const [quick, setQuick] = useState<"active" | "todo" | "all">("active");
   const [fFrom, setFFrom] = useState(""); const [fTo, setFTo] = useState(""); const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
@@ -425,6 +426,7 @@ function Orders() {
 
   const locNames = Array.from(new Set(orders.map((o) => o.location?.name).filter(Boolean)));
 
+  const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
   const filtered = orders.filter((o) => {
     if (fLoc && o.location?.name !== fLoc) return false;
     if (fStatus && o.status !== fStatus) return false;
@@ -432,6 +434,9 @@ function Orders() {
     if (fFrom && ymd < fFrom) return false;
     if (fTo && ymd > fTo) return false;
     if (q) { const s = (o.customerName + " " + o.customerPhone + " " + o.customerEmail + " " + o.productName).toLowerCase(); if (!s.includes(q.toLowerCase())) return false; }
+    // filtro rápido
+    if (quick === "active" && o.status === "picked_up" && day < startToday) return false; // esconde levantadas de datas passadas
+    if (quick === "todo" && !(o.status === "paid" || o.status === "unpaid")) return false; // só por processar
     return true;
   });
 
@@ -521,6 +526,12 @@ function Orders() {
         <button className={view === "agenda" ? "on" : ""} onClick={() => setView("agenda")}>Agenda</button>
         <button className={view === "list" ? "on" : ""} onClick={() => setView("list")}>Lista</button>
         <button onClick={exportCsv} style={{ marginLeft: "auto", border: "1px solid var(--line)", padding: "10px 16px", fontFamily: "Jost", fontSize: ".68rem", letterSpacing: ".14em", textTransform: "uppercase" }}>Exportar CSV</button>
+      </div>
+
+      <div className="menu-toggle" style={{ marginBottom: 14 }}>
+        <button className={quick === "active" ? "on" : ""} onClick={() => setQuick("active")}>Ativas</button>
+        <button className={quick === "todo" ? "on" : ""} onClick={() => setQuick("todo")}>Por processar</button>
+        <button className={quick === "all" ? "on" : ""} onClick={() => setQuick("all")}>Todas</button>
       </div>
 
       <div className="mini" style={{ marginBottom: 10 }}>
