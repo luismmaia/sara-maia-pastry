@@ -6,7 +6,7 @@ const eur = (c: number) => "€" + (c / 100).toFixed(2);
 export default function Admin() {
   const [authed, setAuthed] = useState(false);
   const [pass, setPass] = useState("");
-  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders" | "users" | "settings">("prod");
+  const [tab, setTab] = useState<"prod" | "slot" | "locs" | "orders" | "users" | "emails" | "settings">("prod");
 
   async function login() {
     const r = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pass }) });
@@ -34,6 +34,7 @@ export default function Admin() {
         <button className={tab === "locs" ? "on" : ""} onClick={() => setTab("locs")}>Locais</button>
         <button className={tab === "orders" ? "on" : ""} onClick={() => setTab("orders")}>Encomendas</button>
         <button className={tab === "users" ? "on" : ""} onClick={() => setTab("users")}>Clientes</button>
+        <button className={tab === "emails" ? "on" : ""} onClick={() => setTab("emails")}>Emails</button>
         <button className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Definições</button>
       </div>
       {tab === "prod" && <Products />}
@@ -41,6 +42,7 @@ export default function Admin() {
       {tab === "locs" && <Locations />}
       {tab === "orders" && <Orders />}
       {tab === "users" && <Users />}
+      {tab === "emails" && <EmailSettings />}
       {tab === "settings" && <Settings />}
     </div>
   );
@@ -725,6 +727,75 @@ function Users() {
           )}
         </div>
       ))}
+    </>
+  );
+}
+
+function EmailSettings() {
+  const [s, setS] = useState<any>({ orderNotifyEmails: "", emailCustomerEnabled: "1", emailOwnerEnabled: "1", emailSignature: "", emailReplyTo: "" });
+  const [meta, setMeta] = useState<{ _resendConfigured?: boolean; _emailFrom?: string }>({});
+  const [saved, setSaved] = useState(false);
+  const [testTo, setTestTo] = useState("");
+  const [testMsg, setTestMsg] = useState("");
+  const load = () => fetch("/api/admin/settings").then((r) => r.json()).then((d) => { setS(d); setMeta({ _resendConfigured: d._resendConfigured, _emailFrom: d._emailFrom }); });
+  useEffect(() => { load(); }, []);
+  const set = (k: string, v: string) => { setS((p: any) => ({ ...p, [k]: v })); setSaved(false); };
+
+  async function save() {
+    setSaved(false);
+    const body = {
+      orderNotifyEmails: s.orderNotifyEmails, emailReplyTo: s.emailReplyTo, emailSignature: s.emailSignature,
+      emailCustomerEnabled: s.emailCustomerEnabled, emailOwnerEnabled: s.emailOwnerEnabled,
+    };
+    const res = await fetch("/api/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (res.ok) setSaved(true);
+  }
+  async function sendTest() {
+    setTestMsg("A enviar…");
+    const res = await fetch("/api/admin/email-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: testTo }) });
+    const d = await res.json().catch(() => ({}));
+    setTestMsg(res.ok ? `Enviado para ${d.to}. Verifica a caixa de entrada.` : (d.error || "Falhou."));
+  }
+
+  const ta = { width: "100%", padding: "12px 13px", border: "1px solid var(--line)", background: "#fff", fontFamily: "Inter", fontSize: ".9rem", color: "var(--ink)", resize: "vertical" as const };
+
+  return (
+    <>
+      <p className="note" style={{ marginBottom: 8 }}>Definições de envio de emails. Os emails são enviados pelo serviço Resend.</p>
+      {!meta._resendConfigured && <p className="note" style={{ color: "var(--accent)" }}>⚠ O envio de emails ainda não está ligado (falta a variável RESEND_API_KEY e/ou EMAIL_FROM no servidor). Podes configurar tudo aqui na mesma; só não serão enviados até ligares o Resend.</p>}
+      {meta._emailFrom && <p className="note" style={{ marginTop: 0 }}>Remetente atual: <b>{meta._emailFrom}</b></p>}
+
+      <div className="field" style={{ marginTop: 14 }}>
+        <label>Destinatários do aviso de novas encomendas (um por linha ou separados por vírgula)</label>
+        <textarea rows={3} style={ta} value={s.orderNotifyEmails || ""} onChange={(e) => set("orderNotifyEmails", e.target.value)} placeholder="sara@exemplo.pt&#10;ajudante@exemplo.pt" />
+      </div>
+
+      <label className="check"><input type="checkbox" checked={s.emailOwnerEnabled !== "0"} onChange={(e) => set("emailOwnerEnabled", e.target.checked ? "1" : "0")} /><span>Enviar aviso de nova encomenda para os destinatários acima</span></label>
+      <label className="check"><input type="checkbox" checked={s.emailCustomerEnabled !== "0"} onChange={(e) => set("emailCustomerEnabled", e.target.checked ? "1" : "0")} /><span>Enviar email de confirmação ao cliente</span></label>
+
+      <div className="field" style={{ marginTop: 14, maxWidth: 380 }}>
+        <label>Responder para (reply-to) — opcional</label>
+        <input value={s.emailReplyTo || ""} onChange={(e) => set("emailReplyTo", e.target.value)} placeholder="email para onde vão as respostas dos clientes" />
+      </div>
+
+      <div className="field">
+        <label>Assinatura / mensagem no fim do email ao cliente (opcional)</label>
+        <textarea rows={3} style={ta} value={s.emailSignature || ""} onChange={(e) => set("emailSignature", e.target.value)} placeholder="ex.: Obrigada pela tua encomenda! Para qualquer questão, fala connosco pelo Instagram @saramaiapastry." />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <button className="btn" onClick={save}>Guardar</button>
+        {saved && <span style={{ color: "var(--ok)", fontSize: ".85rem" }}>Guardado.</span>}
+      </div>
+
+      <div style={{ borderTop: "1px solid var(--line)", marginTop: 24, paddingTop: 20 }}>
+        <div className="lbl-u" style={{ marginBottom: 10 }}>Enviar email de teste</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input style={{ flex: 1, minWidth: 220, padding: "12px 13px", border: "1px solid var(--line)" }} value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="email de destino (vazio = 1.º da lista)" />
+          <button className="btn ghost" onClick={sendTest}>Enviar teste</button>
+        </div>
+        {testMsg && <p className="note" style={{ marginBottom: 0 }}>{testMsg}</p>}
+      </div>
     </>
   );
 }
